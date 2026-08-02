@@ -55,7 +55,11 @@ class ForgotPasswordRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 def serve_index():
-    if os.path.exists("index.html"):
+    ruta_archivo = "estatica/index.html"
+    if os.path.exists(ruta_archivo):
+        with open(ruta_archivo, "r", encoding="utf-8") as f:
+            return f.read()
+    elif os.path.exists("index.html"):
         with open("index.html", "r", encoding="utf-8") as f:
             return f.read()
     return "<h1>Bienvenido a La Bóveda</h1><p>Archivo index.html no encontrado en el servidor.</p>"
@@ -89,17 +93,14 @@ def procesar_token(data: TokenRequest):
         row = cursor.fetchone()
 
         if not row:
-            # Si el usuario no existe al intentar hacer login con credenciales estilo token directo
             cursor.execute("INSERT INTO users (email, password, api_key, api_secret, mode) VALUES (?, ?, ?, ?, ?)", 
                            (data.user_id, data.api_secret, data.api_key, data.api_secret, data.mode))
             conn.commit()
         else:
             stored_password, stored_key, stored_secret = row
-            # Si se está autenticando desde el login con contraseña
             if data.api_secret == stored_password or data.api_secret == stored_secret:
                 pass
             else:
-                # Actualizar API keys si se guardan desde el panel interno
                 cursor.execute("UPDATE users SET api_key = ?, api_secret = ?, mode = ? WHERE email = ?", 
                                (data.api_key, data.api_secret, data.mode, data.user_id))
                 conn.commit()
