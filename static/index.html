@@ -39,13 +39,13 @@
 </head>
 <body class="bg-slate-950 text-white h-screen w-screen flex items-center justify-center p-4 relative overflow-hidden m-0">
 
-    <!-- Elementos flotantes de iconos en el fondo (mantienen su animación) -->
+    <!-- Elementos flotantes de iconos en el fondo -->
     <div class="icono-flotante text-amber-400 text-3xl font-bold pointer-events-none" style="left: 10%; animation-duration: 9s;">₿</div>
     <div class="icono-flotante text-amber-500 text-2xl font-bold pointer-events-none" style="left: 30%; animation-duration: 13s; animation-delay: 2s;">Ξ</div>
     <div class="icono-flotante text-yellow-400 text-2xl font-bold pointer-events-none" style="left: 70%; animation-duration: 11s; animation-delay: 1s;">⚡</div>
     <div class="icono-flotante text-amber-400 text-3xl font-bold pointer-events-none" style="left: 85%; animation-duration: 15s; animation-delay: 3s;">SOL</div>
 
-    <!-- Mensajes horizontales deslizantes en el fondo (mantienen su animación) -->
+    <!-- Mensajes horizontales deslizantes en el fondo -->
     <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm pointer-events-none" style="top: 10%; animation-duration: 22s;">⚡ BTC superando resistencia clave en $92,000 USD</div>
     <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm pointer-events-none" style="top: 22%; animation-duration: 25s; animation-delay: 3s;">💡 Invierte con inteligencia, el mercado es versátil.</div>
     <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm pointer-events-none" style="top: 35%; animation-duration: 20s; animation-delay: 1s;">📊 Alta liquidez en pares institucionales de Ethereum</div>
@@ -55,7 +55,7 @@
     <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm pointer-events-none" style="top: 86%; animation-duration: 21s; animation-delay: 1.5s;">🌐 Mercado global de activos digitales operando con normalidad</div>
     <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm pointer-events-none" style="top: 93%; animation-duration: 27s; animation-delay: 6s;">🔒 Protege tu capital antes de buscar ganancias.</div>
 
-    <!-- Tarjeta Principal: COMPLETAMENTE FIJA E INMÓVIL en el centro -->
+    <!-- Tarjeta Principal: Fija e Inmóvil en el centro -->
     <div id="contenedor-auth" class="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md z-10 static">
         
         <!-- Encabezado de la Tarjeta -->
@@ -74,11 +74,11 @@
         <div id="contenido-login" class="vista-formulario">
             <form id="form-login" class="space-y-4" onsubmit="manejarLogin(event)">
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">Correo Electrónico / User ID</label>
-                    <input type="text" id="login-username" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <label class="block text-xs text-slate-400 mb-1">Correo Electrónico</label>
+                    <input type="email" id="login-username" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">Contraseña o API Secret</label>
+                    <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
                     <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 
@@ -90,39 +90,48 @@
             </form>
         </div>
 
-        <!-- Contenedor de Registro (Oculto por defecto) -->
+        <!-- Contenedor de Registro (Limpio: Sin API Keys) -->
         <div id="contenido-registro" class="vista-formulario hidden">
             <form id="form-registro" class="space-y-4" onsubmit="manejarRegistro(event)">
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">Nombre Completo / User ID</label>
-                    <input type="text" id="reg-userid" required placeholder="Tu nombre o ID" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <label class="block text-xs text-slate-400 mb-1">Correo Electrónico</label>
+                    <input type="email" id="reg-email" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">API Key de Binance (o Credencial de Prueba)</label>
-                    <input type="text" id="reg-apikey" required placeholder="Tu API Key" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
+                    <input type="password" id="reg-password" required placeholder="Mínimo 6 caracteres" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">API Secret / Contraseña</label>
-                    <input type="password" id="reg-apisecret" required placeholder="Tu API Secret" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <label class="block text-xs text-slate-400 mb-1">Confirmar Contraseña</label>
+                    <input type="password" id="reg-password-confirm" required placeholder="Repite tu contraseña" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all shadow-lg shadow-amber-500/20">Crear Cuenta y Conectar</button>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all shadow-lg shadow-amber-500/20">Registrarse</button>
             </form>
         </div>
 
-        <!-- Contenedor del Panel Interno (Oculto hasta iniciar sesión con éxito) -->
-        <div id="panel-interno" class="hidden text-center space-y-4">
-            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl">
-                <span class="text-xs text-amber-400 uppercase font-mono tracking-widest">Estado: Conectado Secure</span>
-                <h2 id="saludo-usuario" class="text-xl font-bold mt-2 text-white">¡Bienvenido a La Bóveda!</h2>
-                <p class="text-xs text-slate-400 mt-1">Tu sesión está activa y cifrada de extremo a extremo.</p>
+        <!-- Contenedor del Panel Interno (Donde se configuran las API Keys de Binance ya estando dentro) -->
+        <div id="panel-interno" class="hidden space-y-4">
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
+                <span class="text-xs text-amber-400 uppercase font-mono tracking-widest">Estado: Sesión Activa</span>
+                <h2 id="saludo-usuario" class="text-lg font-bold mt-1 text-white">¡Bienvenido a La Bóveda!</h2>
+                <p class="text-xs text-slate-400 mt-1">Configura tus credenciales de Binance para operar.</p>
             </div>
             
-            <div class="p-3 bg-slate-950/50 rounded-lg border border-slate-800/50 text-left font-mono text-xs text-slate-300 break-all">
-                <span class="text-amber-400 font-bold">Token JWT Activo:</span>
-                <p id="token-display" class="mt-1 text-slate-500 truncate">Cargando...</p>
+            <!-- Formulario para vincular las API Keys de Binance desde adentro -->
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
+                <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Vincular API de Binance</h3>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Binance API Key</label>
+                    <input type="text" id="binance-apikey" placeholder="Ingresa tu API Key" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-xs focus:border-amber-400 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Binance API Secret</label>
+                    <input type="password" id="binance-apisecret" placeholder="Ingresa tu API Secret" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-xs focus:border-amber-400 outline-none">
+                </div>
+                <button onclick="guardarApiKeys()" class="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/50 font-bold py-2 rounded-lg text-xs transition-all">Guardar Credenciales de Binance</button>
             </div>
 
-            <button onclick="cerrarSesion()" class="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 font-bold py-3 rounded-lg transition-all">Cerrar Sesión</button>
+            <button onclick="cerrarSesion()" class="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 font-bold py-2 rounded-lg text-xs transition-all">Cerrar Sesión</button>
         </div>
 
     </div>
@@ -152,25 +161,31 @@
 
         async function manejarRegistro(event) {
             event.preventDefault();
-            const userId = document.getElementById('reg-userid').value.trim();
-            const apiKey = document.getElementById('reg-apikey').value.trim();
-            const apiSecret = document.getElementById('reg-apisecret').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value.trim();
+            const passwordConfirm = document.getElementById('reg-password-confirm').value.trim();
+
+            if (password !== passwordConfirm) {
+                alert("⚠️ Las contraseñas no coinciden.");
+                return;
+            }
 
             try {
+                // Registro enviando credenciales base al backend
                 const response = await fetch(`${API_URL}/api/token`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, api_key: apiKey, api_secret: apiSecret, mode: "testnet" })
+                    body: JSON.stringify({ user_id: email, api_key: email, api_secret: password, mode: "testnet" })
                 });
                 const resultado = await response.json();
                 if (!response.ok) {
-                    alert("⚠️ Error en el registro: " + (resultado.detail || "Verifica tus credenciales"));
+                    alert("⚠️ Error en el registro: " + (resultado.detail || "Verifica los datos"));
                     return;
                 }
-                alert("✅ ¡Cuenta creada y conectada con éxito!");
+                alert("✅ ¡Cuenta creada con éxito!");
                 localStorage.setItem('access_token', resultado.access_token);
-                localStorage.setItem('user_id', userId);
-                mostrarPanelInterno(userId, resultado.access_token);
+                localStorage.setItem('user_id', email);
+                mostrarPanelInterno(email);
             } catch (error) {
                 alert("❌ Error de red al conectar con La Bóveda.");
             }
@@ -178,14 +193,14 @@
 
         async function manejarLogin(event) {
             event.preventDefault();
-            const userId = document.getElementById('login-username').value.trim();
-            const apiSecret = document.getElementById('login-password').value.trim();
+            const email = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value.trim();
 
             try {
                 const response = await fetch(`${API_URL}/api/token`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, api_key: userId, api_secret: apiSecret, mode: "testnet" })
+                    body: JSON.stringify({ user_id: email, api_key: email, api_secret: password, mode: "testnet" })
                 });
                 const resultado = await response.json();
                 if (!response.ok) {
@@ -194,40 +209,56 @@
                 }
                 alert("✅ ¡Inicio de sesión exitoso!");
                 localStorage.setItem('access_token', resultado.access_token);
-                localStorage.setItem('user_id', userId);
-                mostrarPanelInterno(userId, resultado.access_token);
+                localStorage.setItem('user_id', email);
+                mostrarPanelInterno(email);
             } catch (error) {
                 alert("❌ Error al comunicarse con el servidor.");
             }
         }
 
-        function mostrarPanelInterno(userId, token) {
+        function mostrarPanelInterno(userId) {
             document.getElementById('contenido-login').classList.add('hidden');
             document.getElementById('contenido-registro').classList.add('hidden');
             document.getElementById('pestanas-nav').classList.add('hidden');
             const panel = document.getElementById('panel-interno');
             panel.classList.remove('hidden');
             document.getElementById('saludo-usuario').innerText = `¡Hola, ${userId}!`;
-            document.getElementById('token-display').innerText = token;
+        }
+
+        async function guardarApiKeys() {
+            const apiKey = document.getElementById('binance-apikey').value.trim();
+            const apiSecret = document.getElementById('binance-apisecret').value.trim();
+            const userId = localStorage.getItem('user_id');
+
+            if (!apiKey || !apiSecret) {
+                alert("⚠️ Ingresa tanto la API Key como el API Secret.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, api_key: apiKey, api_secret: apiSecret, mode: "testnet" })
+                });
+                if (response.ok) {
+                    alert("✅ ¡Credenciales de Binance guardadas y cifradas con éxito!");
+                } else {
+                    alert("⚠️ Error al guardar las credenciales.");
+                }
+            } catch (e) {
+                alert("❌ Error de conexión.");
+            }
         }
 
         async function cerrarSesion() {
-            const token = localStorage.getItem('access_token');
-            try {
-                if (token) {
-                    await fetch(`${API_URL}/api/logout`, {
-                        method: 'POST',
-                        headers: { 'authorization': `Bearer ${token}` }
-                    });
-                }
-            } catch (e) {}
             localStorage.removeItem('access_token');
             localStorage.removeItem('user_id');
             location.reload();
         }
 
         async function solicitarRecuperacion() {
-            const userId = prompt("Ingresa tu Correo / User ID para recuperar la contraseña:");
+            const userId = prompt("Ingresa tu Correo para recuperar la contraseña:");
             if (!userId) return;
             try {
                 const response = await fetch(`${API_URL}/api/forgot-password`, {
