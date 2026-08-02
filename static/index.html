@@ -6,7 +6,7 @@
     <title>La Bóveda - Broker de Criptomonedas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Animaciones para los elementos flotantes */
+        /* Animaciones para los elementos flotantes de fondo */
         @keyframes floatUp {
             0% { transform: translateY(105vh) rotate(0deg); opacity: 0; }
             15% { opacity: 0.25; }
@@ -37,26 +37,26 @@
         }
     </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
+<body class="bg-slate-950 text-white h-screen w-screen flex items-center justify-center p-4 relative overflow-hidden m-0">
 
-    <!-- Elementos flotantes de iconos -->
-    <div class="icono-flotante text-amber-400 text-3xl font-bold" style="left: 10%; animation-duration: 9s;">₿</div>
-    <div class="icono-flotante text-amber-500 text-2xl font-bold" style="left: 30%; animation-duration: 13s; animation-delay: 2s;">Ξ</div>
-    <div class="icono-flotante text-yellow-400 text-2xl font-bold" style="left: 70%; animation-duration: 11s; animation-delay: 1s;">⚡</div>
-    <div class="icono-flotante text-amber-400 text-3xl font-bold" style="left: 85%; animation-duration: 15s; animation-delay: 3s;">SOL</div>
+    <!-- Elementos flotantes de iconos en el fondo -->
+    <div class="icono-flotante text-amber-400 text-3xl font-bold pointer-events-none" style="left: 10%; animation-duration: 9s;">₿</div>
+    <div class="icono-flotante text-amber-500 text-2xl font-bold pointer-events-none" style="left: 30%; animation-duration: 13s; animation-delay: 2s;">Ξ</div>
+    <div class="icono-flotante text-yellow-400 text-2xl font-bold pointer-events-none" style="left: 70%; animation-duration: 11s; animation-delay: 1s;">⚡</div>
+    <div class="icono-flotante text-amber-400 text-3xl font-bold pointer-events-none" style="left: 85%; animation-duration: 15s; animation-delay: 3s;">SOL</div>
 
-    <!-- Mensajes horizontales con direcciones alternadas -->
-    <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm" style="top: 10%; animation-duration: 22s;">⚡ BTC superando resistencia clave en $92,000 USD</div>
-    <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm" style="top: 22%; animation-duration: 25s; animation-delay: 3s;">💡 Invierte con inteligencia, el mercado es versátil.</div>
-    <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm" style="top: 35%; animation-duration: 20s; animation-delay: 1s;">📊 Alta liquidez en pares institucionales de Ethereum</div>
-    <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm" style="top: 48%; animation-duration: 28s; animation-delay: 5s;">🛡️ La gestión del riesgo es la clave de la rentabilidad.</div>
-    <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm" style="top: 61%; animation-duration: 24s; animation-delay: 2s;">🔥 Solana registra nuevo récord de transacciones por segundo</div>
-    <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm" style="top: 74%; animation-duration: 26s; animation-delay: 4s;">📈 Analiza los gráficos con paciencia, la oportunidad perfecta llegará.</div>
-    <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm" style="top: 86%; animation-duration: 21s; animation-delay: 1.5s;">🌐 Mercado global de activos digitales operando con normalidad</div>
-    <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm" style="top: 93%; animation-duration: 27s; animation-delay: 6s;">🔒 Protege tu capital antes de buscar ganancias.</div>
+    <!-- Mensajes horizontales deslizantes en el fondo -->
+    <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm pointer-events-none" style="top: 10%; animation-duration: 22s;">⚡ BTC superando resistencia clave en $92,000 USD</div>
+    <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm pointer-events-none" style="top: 22%; animation-duration: 25s; animation-delay: 3s;">💡 Invierte con inteligencia, el mercado es versátil.</div>
+    <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm pointer-events-none" style="top: 35%; animation-duration: 20s; animation-delay: 1s;">📊 Alta liquidez en pares institucionales de Ethereum</div>
+    <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm pointer-events-none" style="top: 48%; animation-duration: 28s; animation-delay: 5s;">🛡️ La gestión del riesgo es la clave de la rentabilidad.</div>
+    <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm pointer-events-none" style="top: 61%; animation-duration: 24s; animation-delay: 2s;">🔥 Solana registra nuevo récord de transacciones por segundo</div>
+    <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm pointer-events-none" style="top: 74%; animation-duration: 26s; animation-delay: 4s;">📈 Analiza los gráficos con paciencia, la oportunidad perfecta llegará.</div>
+    <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm pointer-events-none" style="top: 86%; animation-duration: 21s; animation-delay: 1.5s;">🌐 Mercado global de activos digitales operando con normalidad</div>
+    <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm pointer-events-none" style="top: 93%; animation-duration: 27s; animation-delay: 6s;">🔒 Protege tu capital antes de buscar ganancias.</div>
 
-    <!-- Tarjeta Principal Estática en el Centro -->
-    <div id="contenedor-auth" class="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md z-10">
+    <!-- Tarjeta Principal Estática centrada exactamente en pantalla -->
+    <div id="contenedor-auth" class="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md z-10 my-auto">
         
         <!-- Encabezado de la Tarjeta -->
         <div class="text-center mb-6">
@@ -129,9 +129,8 @@
 
     <!-- Scripts de la Aplicación -->
     <script>
-        const API_URL = ''; // Relativo al mismo servidor
+        const API_URL = '';
 
-        // --- Gestión de Vistas ---
         function cambiarVista(vista) {
             const loginForm = document.getElementById('contenido-login');
             const registroForm = document.getElementById('contenido-registro');
@@ -151,7 +150,6 @@
             }
         }
 
-        // --- Lógica de Registro (Conecta con /api/token) ---
         async function manejarRegistro(event) {
             event.preventDefault();
             const userId = document.getElementById('reg-userid').value.trim();
@@ -162,84 +160,57 @@
                 const response = await fetch(`${API_URL}/api/token`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        api_key: apiKey,
-                        api_secret: apiSecret,
-                        mode: "testnet"
-                    })
+                    body: JSON.stringify({ user_id: userId, api_key: apiKey, api_secret: apiSecret, mode: "testnet" })
                 });
-
                 const resultado = await response.json();
-
                 if (!response.ok) {
                     alert("⚠️ Error en el registro: " + (resultado.detail || "Verifica tus credenciales"));
                     return;
                 }
-
                 alert("✅ ¡Cuenta creada y conectada con éxito!");
                 localStorage.setItem('access_token', resultado.access_token);
                 localStorage.setItem('user_id', userId);
                 mostrarPanelInterno(userId, resultado.access_token);
-
             } catch (error) {
-                console.error("Error:", error);
                 alert("❌ Error de red al conectar con La Bóveda.");
             }
         }
 
-        // --- Lógica de Inicio de Sesión ---
         async function manejarLogin(event) {
             event.preventDefault();
             const userId = document.getElementById('login-username').value.trim();
             const apiSecret = document.getElementById('login-password').value.trim();
 
-            // Para iniciar sesión validando contra el backend usando las credenciales guardadas
-            // Usamos una API Key genérica temporal o validamos directamente enviando el secreto
             try {
                 const response = await fetch(`${API_URL}/api/token`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: userId,
-                        api_key: userId, // Fallback clave pública si el user_id actúa como key
-                        api_secret: apiSecret,
-                        mode: "testnet"
-                    })
+                    body: JSON.stringify({ user_id: userId, api_key: userId, api_secret: apiSecret, mode: "testnet" })
                 });
-
                 const resultado = await response.json();
-
                 if (!response.ok) {
                     alert("⚠️ Credenciales incorrectas: " + (resultado.detail || "No se pudo iniciar sesión"));
                     return;
                 }
-
                 alert("✅ ¡Inicio de sesión exitoso!");
                 localStorage.setItem('access_token', resultado.access_token);
                 localStorage.setItem('user_id', userId);
                 mostrarPanelInterno(userId, resultado.access_token);
-
             } catch (error) {
-                console.error("Error:", error);
                 alert("❌ Error al comunicarse con el servidor.");
             }
         }
 
-        // --- Mostrar Panel Interno al Entrar ---
         function mostrarPanelInterno(userId, token) {
             document.getElementById('contenido-login').classList.add('hidden');
             document.getElementById('contenido-registro').classList.add('hidden');
             document.getElementById('pestanas-nav').classList.add('hidden');
-            
             const panel = document.getElementById('panel-interno');
             panel.classList.remove('hidden');
-
             document.getElementById('saludo-usuario').innerText = `¡Hola, ${userId}!`;
             document.getElementById('token-display').innerText = token;
         }
 
-        // --- Cierre de Sesión ---
         async function cerrarSesion() {
             const token = localStorage.getItem('access_token');
             try {
@@ -249,20 +220,15 @@
                         headers: { 'authorization': `Bearer ${token}` }
                     });
                 }
-            } catch (e) {
-                console.error(e);
-            }
-
+            } catch (e) {}
             localStorage.removeItem('access_token');
             localStorage.removeItem('user_id');
             location.reload();
         }
 
-        // --- Recuperación de Contraseña ---
         async function solicitarRecuperacion() {
             const userId = prompt("Ingresa tu Correo / User ID para recuperar la contraseña:");
             if (!userId) return;
-
             try {
                 const response = await fetch(`${API_URL}/api/forgot-password`, {
                     method: 'POST',
@@ -280,7 +246,5 @@
             }
         }
     </script>
-</body>
-</html>
 </body>
 </html>
