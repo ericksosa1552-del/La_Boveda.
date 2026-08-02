@@ -3,298 +3,271 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Bóveda - Trading y Gestión Automatizada</title>
+    <title>La Bóveda - Broker de Criptomonedas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --bg-color: #0d1117;
-            --card-bg: #161b22;
-            --border-color: #30363d;
-            --text-color: #c9d1d9;
-            --accent-color: #238636;
-            --accent-hover: #2ea043;
-            --danger-color: #f85149;
-            --input-bg: #0d1117;
+        @keyframes floatUp {
+            0% { transform: translateY(105vh) rotate(0deg); opacity: 0; }
+            15% { opacity: 0.25; }
+            85% { opacity: 0.25; }
+            100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
         }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        .icono-flotante {
+            position: absolute;
+            animation: floatUp linear infinite;
         }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
+        @keyframes scrollLeftToRight {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100vw); }
         }
-
-        .container {
-            width: 100%;
-            max-width: 420px;
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        @keyframes scrollRightToLeft {
+            0% { transform: translateX(100vw); }
+            100% { transform: translateX(-100%); }
         }
-
-        h1 {
-            text-align: center;
-            color: #ffffff;
-            margin-bottom: 8px;
-            font-size: 24px;
+        .mensaje-izq-der {
+            position: absolute;
+            white-space: nowrap;
+            animation: scrollLeftToRight linear infinite;
         }
-
-        .subtitle {
-            text-align: center;
-            font-size: 14px;
-            color: #8b949e;
-            margin-bottom: 24px;
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: #c9d1d9;
-        }
-
-        input, select {
-            width: 100%;
-            padding: 10px 12px;
-            background-color: var(--input-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: #ffffff;
-            font-size: 14px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        input:focus, select:focus {
-            border-color: #58a6ff;
-            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
-        }
-
-        button {
-            width: 100%;
-            padding: 10px 16px;
-            background-color: var(--accent-color);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            margin-top: 10px;
-        }
-
-        button:hover {
-            background-color: var(--accent-hover);
-        }
-
-        .message {
-            margin-top: 16px;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 13px;
-            text-align: center;
-            display: none;
-        }
-
-        .message.success {
-            background-color: rgba(35, 134, 54, 0.2);
-            border: 1px solid var(--accent-color);
-            color: #3fb950;
-            display: block;
-        }
-
-        .message.error {
-            background-color: rgba(248, 81, 73, 0.2);
-            border: 1px solid var(--danger-color);
-            color: var(--danger-color);
-            display: block;
-        }
-
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .tab {
-            flex: 1;
-            text-align: center;
-            padding: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            color: #8b949e;
-            border-bottom: 2px solid transparent;
-        }
-
-        .tab.active {
-            color: #ffffff;
-            border-bottom-color: #58a6ff;
-        }
-
-        .section {
-            display: none;
-        }
-
-        .section.active {
-            display: block;
+        .mensaje-der-izq {
+            position: absolute;
+            white-space: nowrap;
+            animation: scrollRightToLeft linear infinite;
         }
     </style>
 </head>
-<body>
+<body class="bg-slate-950 text-white h-screen w-screen flex items-center justify-center p-4 relative overflow-hidden m-0">
 
-    <div class="container">
-        <h1>La Bóveda</h1>
-        <div class="subtitle">Panel de Control & Conexión de API</div>
+    <!-- Elementos flotantes de fondo -->
+    <div class="icono-flotante text-amber-400 text-3xl font-bold pointer-events-none" style="left: 10%; animation-duration: 9s;">₿</div>
+    <div class="icono-flotante text-amber-500 text-2xl font-bold pointer-events-none" style="left: 30%; animation-duration: 13s; animation-delay: 2s;">Ξ</div>
+    <div class="icono-flotante text-yellow-400 text-2xl font-bold pointer-events-none" style="left: 70%; animation-duration: 11s; animation-delay: 1s;">⚡</div>
+    <div class="icono-flotante text-amber-400 text-3xl font-bold pointer-events-none" style="left: 85%; animation-duration: 15s; animation-delay: 3s;">SOL</div>
 
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('token')">Conexión API</div>
-            <div class="tab" onclick="switchTab('register')">Registro</div>
+    <!-- Mensajes deslizantes de fondo -->
+    <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm pointer-events-none" style="top: 10%; animation-duration: 22s;">⚡ BTC superando resistencia clave en $92,000 USD</div>
+    <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm pointer-events-none" style="top: 22%; animation-duration: 25s; animation-delay: 3s;">💡 Invierte con inteligencia, el mercado es versátil.</div>
+    <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm pointer-events-none" style="top: 35%; animation-duration: 20s; animation-delay: 1s;">📊 Alta liquidez en pares institucionales de Ethereum</div>
+    <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm pointer-events-none" style="top: 48%; animation-duration: 28s; animation-delay: 5s;">🛡️ La gestión del riesgo es la clave de la rentabilidad.</div>
+    <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm pointer-events-none" style="top: 61%; animation-duration: 24s; animation-delay: 2s;">🔥 Solana registra nuevo récord de transacciones por segundo</div>
+    <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm pointer-events-none" style="top: 74%; animation-duration: 26s; animation-delay: 4s;">📈 Analiza los gráficos con paciencia, la oportunidad perfecta llegará.</div>
+    <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm pointer-events-none" style="top: 86%; animation-duration: 21s; animation-delay: 1.5s;">🌐 Mercado global de activos digitales operando con normalidad</div>
+    <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm pointer-events-none" style="top: 93%; animation-duration: 27s; animation-delay: 6s;">🔒 Protege tu capital antes de buscar ganancias.</div>
+
+    <!-- Ventana Principal Fija en el Centro -->
+    <div id="contenedor-auth" class="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md z-10 static">
+        
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-black tracking-wider text-amber-400">La Bóveda</h1>
+            <p class="text-xs text-slate-400 mt-1">Plataforma Segura de Trading y Activos Digitales</p>
         </div>
 
-        <!-- Sección Token / Conexión API -->
-        <div id="section-token" class="section active">
-            <form id="tokenForm">
-                <div class="form-group">
-                    <label for="user_id">Correo / Usuario</label>
-                    <input type="email" id="user_id" required placeholder="tucorreo@dominio.com">
+        <div id="pestanas-nav" class="flex justify-center space-x-6 mb-6 border-b border-slate-800 pb-2">
+            <button onclick="cambiarVista('login')" id="btn-login" class="font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all">Iniciar Sesión</button>
+            <button onclick="cambiarVista('registro')" id="btn-registro" class="text-slate-400 pb-1 transition-all">Registrarse</button>
+        </div>
+
+        <!-- Login -->
+        <div id="contenido-login" class="vista-formulario">
+            <form id="form-login" class="space-y-4" onsubmit="manejarLogin(event)">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Correo Electrónico</label>
+                    <input type="email" id="login-username" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
-                <div class="form-group">
-                    <label for="api_key">API Key</label>
-                    <input type="text" id="api_key" required placeholder="Ingresa tu API Key">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
+                    <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
-                <div class="form-group">
-                    <label for="api_secret">API Secret</label>
-                    <input type="password" id="api_secret" required placeholder="Ingresa tu API Secret">
+                
+                <div class="text-right">
+                    <a href="#" onclick="solicitarRecuperacion(); return false;" class="text-xs text-amber-400 hover:underline">¿Olvidaste tu contraseña?</a>
                 </div>
-                <div class="form-group">
-                    <label for="mode">Modo de Operación</label>
-                    <select id="mode">
-                        <option value="testnet">Testnet (Simulador)</option>
-                        <option value="live">Live (Real)</option>
-                    </select>
-                </div>
-                <button type="submit">Conectar Bóveda</button>
+
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all shadow-lg shadow-amber-500/20">Entrar a La Bóveda</button>
             </form>
-            <div id="tokenMessage" class="message"></div>
         </div>
 
-        <!-- Sección Registro -->
-        <div id="section-register" class="section">
-            <form id="registerForm">
-                <div class="form-group">
-                    <label for="reg_email">Correo Electrónico</label>
-                    <input type="email" id="reg_email" required placeholder="tucorreo@dominio.com">
+        <!-- Registro con confirmación de contraseña -->
+        <div id="contenido-registro" class="vista-formulario hidden">
+            <form id="form-registro" class="space-y-4" onsubmit="manejarRegistro(event)">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Correo Electrónico</label>
+                    <input type="email" id="reg-email" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
-                <div class="form-group">
-                    <label for="reg_password">Contraseña</label>
-                    <input type="password" id="reg_password" required placeholder="Crea una contraseña segura">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
+                    <input type="password" id="reg-password" required placeholder="Mínimo 6 caracteres" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
-                <button type="submit">Registrar Cuenta</button>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Confirmar Contraseña</label>
+                    <input type="password" id="reg-password-confirm" required placeholder="Repite tu contraseña" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                </div>
+                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all shadow-lg shadow-amber-500/20">Registrarse</button>
             </form>
-            <div id="regMessage" class="message"></div>
         </div>
+
+        <!-- Panel Interno para configurar API de Binance -->
+        <div id="panel-interno" class="hidden space-y-4">
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
+                <span class="text-xs text-amber-400 uppercase font-mono tracking-widest">Estado: Sesión Activa</span>
+                <h2 id="saludo-usuario" class="text-lg font-bold mt-1 text-white">¡Bienvenido a La Bóveda!</h2>
+                <p class="text-xs text-slate-400 mt-1">Configura tus credenciales de Binance para operar.</p>
+            </div>
+            
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
+                <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Vincular API de Binance</h3>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Binance API Key</label>
+                    <input type="text" id="binance-apikey" placeholder="Ingresa tu API Key" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-xs focus:border-amber-400 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1">Binance API Secret</label>
+                    <input type="password" id="binance-apisecret" placeholder="Ingresa tu API Secret" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-xs focus:border-amber-400 outline-none">
+                </div>
+                <button onclick="guardarApiKeys()" class="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/50 font-bold py-2 rounded-lg text-xs transition-all">Guardar Credenciales de Binance</button>
+            </div>
+
+            <button onclick="cerrarSesion()" class="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 font-bold py-2 rounded-lg text-xs transition-all">Cerrar Sesión</button>
+        </div>
+
     </div>
 
     <script>
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        const API_URL = '';
 
-            if (tabName === 'token') {
-                document.querySelectorAll('.tab')[0].classList.add('active');
-                document.getElementById('section-token').classList.add('active');
+        function cambiarVista(vista) {
+            const loginForm = document.getElementById('contenido-login');
+            const registroForm = document.getElementById('contenido-registro');
+            const btnLogin = document.getElementById('btn-login');
+            const btnRegistro = document.getElementById('btn-registro');
+
+            if (vista === 'login') {
+                registroForm.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+                btnLogin.className = "font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all";
+                btnRegistro.className = "text-slate-400 pb-1 transition-all";
             } else {
-                document.querySelectorAll('.tab')[1].classList.add('active');
-                document.getElementById('section-register').classList.add('active');
+                loginForm.classList.add('hidden');
+                registroForm.classList.remove('hidden');
+                btnRegistro.className = "font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all";
+                btnLogin.className = "text-slate-400 pb-1 transition-all";
             }
         }
 
-        // Manejo de Conexión / Token
-        document.getElementById('tokenForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const msgBox = document.getElementById('tokenMessage');
-            msgBox.className = "message";
-            msgBox.style.display = "none";
+        async function manejarRegistro(event) {
+            event.preventDefault();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value.trim();
+            const passwordConfirm = document.getElementById('reg-password-confirm').value.trim();
 
-            const data = {
-                user_id: document.getElementById('user_id').value,
-                api_key: document.getElementById('api_key').value,
-                api_secret: document.getElementById('api_secret').value,
-                mode: document.getElementById('mode').value
-            };
+            if (password !== passwordConfirm) {
+                alert("⚠️ Las contraseñas no coinciden.");
+                return;
+            }
 
             try {
-                const response = await fetch('/api/token', {
+                const response = await fetch(`${API_URL}/api/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify({ email: email, password: password })
                 });
-                const result = await response.json();
-
-                if (response.ok) {
-                    msgBox.innerText = "¡Conectado exitosamente a La Bóveda!";
-                    msgBox.className = "message success";
-                } else {
-                    msgBox.innerText = result.detail || "Error en la conexión.";
-                    msgBox.className = "message error";
+                const resultado = await response.json();
+                if (!response.ok) {
+                    alert("⚠️ Error en el registro: " + (resultado.detail || "Verifica los datos"));
+                    return;
                 }
-            } catch (err) {
-                msgBox.innerText = "Error de red al conectar con el servidor.";
-                msgBox.className = "message error";
+                alert("✅ ¡Cuenta creada con éxito! Ahora inicia sesión.");
+                cambiarVista('login');
+            } catch (error) {
+                alert("❌ Error de red al conectar con La Bóveda.");
             }
-        });
+        }
 
-        // Manejo de Registro
-        document.getElementById('registerForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const msgBox = document.getElementById('regMessage');
-            msgBox.className = "message";
-            msgBox.style.display = "none";
-
-            const data = {
-                email: document.getElementById('reg_email').value,
-                password: document.getElementById('reg_password').value
-            };
+        async function manejarLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value.trim();
 
             try {
-                const response = await fetch('/api/register', {
+                const response = await fetch(`${API_URL}/api/token`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify({ user_id: email, api_key: email, api_secret: password, mode: "testnet" })
                 });
-                const result = await response.json();
+                const resultado = await response.json();
+                if (!response.ok) {
+                    alert("⚠️ Credenciales incorrectas: " + (resultado.detail || "No se pudo iniciar sesión"));
+                    return;
+                }
+                alert("✅ ¡Inicio de sesión exitoso!");
+                localStorage.setItem('access_token', resultado.access_token);
+                localStorage.setItem('user_id', email);
+                mostrarPanelInterno(email);
+            } catch (error) {
+                alert("❌ Error al comunicarse con el servidor.");
+            }
+        }
 
+        function mostrarPanelInterno(userId) {
+            document.getElementById('contenido-login').classList.add('hidden');
+            document.getElementById('contenido-registro').classList.add('hidden');
+            document.getElementById('pestanas-nav').classList.add('hidden');
+            const panel = document.getElementById('panel-interno');
+            panel.classList.remove('hidden');
+            document.getElementById('saludo-usuario').innerText = `¡Hola, ${userId}!`;
+        }
+
+        async function guardarApiKeys() {
+            const apiKey = document.getElementById('binance-apikey').value.trim();
+            const apiSecret = document.getElementById('binance-apisecret').value.trim();
+            const userId = localStorage.getItem('user_id');
+
+            if (!apiKey || !apiSecret) {
+                alert("⚠️ Ingresa tanto la API Key como el API Secret.");
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/api/token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, api_key: apiKey, api_secret: apiSecret, mode: "testnet" })
+                });
                 if (response.ok) {
-                    msgBox.innerText = "¡Usuario registrado con éxito!";
-                    msgBox.className = "message success";
-                    document.getElementById('registerForm').reset();
+                    alert("✅ ¡Credenciales de Binance guardadas con éxito!");
                 } else {
-                    msgBox.innerText = result.detail || "Error al registrar.";
-                    msgBox.className = "message error";
+                    alert("⚠️ Error al guardar las credenciales.");
+                }
+            } catch (e) {
+                alert("❌ Error de conexión.");
+            }
+        }
+
+        async function cerrarSesion() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_id');
+            location.reload();
+        }
+
+        async function solicitarRecuperacion() {
+            const userId = prompt("Ingresa tu Correo para recuperar la contraseña:");
+            if (!userId) return;
+            try {
+                const response = await fetch(`${API_URL}/api/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                const res = await response.json();
+                if (response.ok) {
+                    alert("🔑 Token de recuperación generado:\n\n" + res.debug_token);
+                } else {
+                    alert("⚠️ " + res.detail);
                 }
             } catch (err) {
-                msgBox.innerText = "Error de red al conectar con el servidor.";
-                msgBox.className = "message error";
+                alert("❌ Error al solicitar recuperación.");
             }
-        });
+        }
     </script>
 </body>
 </html>
