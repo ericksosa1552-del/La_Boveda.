@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Bóveda - Trading y Gestión Automatizada</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --border-color: #30363d;
+            --text-color: #c9d1d9;
+            --accent-color: #238636;
+            --accent-hover: #2ea043;
+            --danger-color: #f85149;
+            --input-bg: #0d1117;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 420px;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        h1 {
+            text-align: center;
+            color: #ffffff;
+            margin-bottom: 8px;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 14px;
+            color: #8b949e;
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #c9d1d9;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: #58a6ff;
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.3);
+        }
+
+        button {
+            width: 100%;
+            padding: 10px 16px;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .message {
+            margin-top: 16px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            text-align: center;
+            display: none;
+        }
+
+        .message.success {
+            background-color: rgba(35, 134, 54, 0.2);
+            border: 1px solid var(--accent-color);
+            color: #3fb950;
+            display: block;
+        }
+
+        .message.error {
+            background-color: rgba(248, 81, 73, 0.2);
+            border: 1px solid var(--danger-color);
+            color: var(--danger-color);
+            display: block;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #8b949e;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            color: #ffffff;
+            border-bottom-color: #58a6ff;
+        }
+
+        .section {
+            display: none;
+        }
+
+        .section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>La Bóveda</h1>
+        <div class="subtitle">Panel de Control & Conexión de API</div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('token')">Conexión API</div>
+            <div class="tab" onclick="switchTab('register')">Registro</div>
+        </div>
+
+        <!-- Sección Token / Conexión API -->
+        <div id="section-token" class="section active">
+            <form id="tokenForm">
+                <div class="form-group">
+                    <label for="user_id">Correo / Usuario</label>
+                    <input type="email" id="user_id" required placeholder="tucorreo@dominio.com">
+                </div>
+                <div class="form-group">
+                    <label for="api_key">API Key</label>
+                    <input type="text" id="api_key" required placeholder="Ingresa tu API Key">
+                </div>
+                <div class="form-group">
+                    <label for="api_secret">API Secret</label>
+                    <input type="password" id="api_secret" required placeholder="Ingresa tu API Secret">
+                </div>
+                <div class="form-group">
+                    <label for="mode">Modo de Operación</label>
+                    <select id="mode">
+                        <option value="testnet">Testnet (Simulador)</option>
+                        <option value="live">Live (Real)</option>
+                    </select>
+                </div>
+                <button type="submit">Conectar Bóveda</button>
+            </form>
+            <div id="tokenMessage" class="message"></div>
+        </div>
+
+        <!-- Sección Registro -->
+        <div id="section-register" class="section">
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="reg_email">Correo Electrónico</label>
+                    <input type="email" id="reg_email" required placeholder="tucorreo@dominio.com">
+                </div>
+                <div class="form-group">
+                    <label for="reg_password">Contraseña</label>
+                    <input type="password" id="reg_password" required placeholder="Crea una contraseña segura">
+                </div>
+                <button type="submit">Registrar Cuenta</button>
+            </form>
+            <div id="regMessage" class="message"></div>
+        </div>
+    </div>
+
+    <script>
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+
+            if (tabName === 'token') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('section-token').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('section-register').classList.add('active');
+            }
+        }
+
+        // Manejo de Conexión / Token
+        document.getElementById('tokenForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const msgBox = document.getElementById('tokenMessage');
+            msgBox.className = "message";
+            msgBox.style.display = "none";
+
+            const data = {
+                user_id: document.getElementById('user_id').value,
+                api_key: document.getElementById('api_key').value,
+                api_secret: document.getElementById('api_secret').value,
+                mode: document.getElementById('mode').value
+            };
+
+            try {
+                const response = await fetch('/api/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    msgBox.innerText = "¡Conectado exitosamente a La Bóveda!";
+                    msgBox.className = "message success";
+                } else {
+                    msgBox.innerText = result.detail || "Error en la conexión.";
+                    msgBox.className = "message error";
+                }
+            } catch (err) {
+                msgBox.innerText = "Error de red al conectar con el servidor.";
+                msgBox.className = "message error";
+            }
+        });
+
+        // Manejo de Registro
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const msgBox = document.getElementById('regMessage');
+            msgBox.className = "message";
+            msgBox.style.display = "none";
+
+            const data = {
+                email: document.getElementById('reg_email').value,
+                password: document.getElementById('reg_password').value
+            };
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    msgBox.innerText = "¡Usuario registrado con éxito!";
+                    msgBox.className = "message success";
+                    document.getElementById('registerForm').reset();
+                } else {
+                    msgBox.innerText = result.detail || "Error al registrar.";
+                    msgBox.className = "message error";
+                }
+            } catch (err) {
+                msgBox.innerText = "Error de red al conectar con el servidor.";
+                msgBox.className = "message error";
+            }
+        });
+    </script>
+</body>
+</html>
