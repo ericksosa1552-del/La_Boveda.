@@ -6,6 +6,7 @@
     <title>La Bóveda - Broker de Criptomonedas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Animaciones para los elementos flotantes */
         @keyframes floatUp {
             0% { transform: translateY(105vh) rotate(0deg); opacity: 0; }
             15% { opacity: 0.25; }
@@ -44,7 +45,7 @@
     <div class="icono-flotante text-yellow-400 text-2xl font-bold" style="left: 70%; animation-duration: 11s; animation-delay: 1s;">⚡</div>
     <div class="icono-flotante text-amber-400 text-3xl font-bold" style="left: 85%; animation-duration: 15s; animation-delay: 3s;">SOL</div>
 
-    <!-- Mensajes horizontales -->
+    <!-- Mensajes horizontales con direcciones alternadas -->
     <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm" style="top: 10%; animation-duration: 22s;">⚡ BTC superando resistencia clave en $92,000 USD</div>
     <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm" style="top: 22%; animation-duration: 25s; animation-delay: 3s;">💡 Invierte con inteligencia, el mercado es versátil.</div>
     <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm" style="top: 35%; animation-duration: 20s; animation-delay: 1s;">📊 Alta liquidez en pares institucionales de Ethereum</div>
@@ -64,7 +65,7 @@
         </div>
 
         <!-- Pestañas de Navegación -->
-        <div id="pestanas-nav" class="flex justify-center space-x-6 mb-6 border-b border-slate-800 pb-2">
+        <div class="flex justify-center space-x-6 mb-6 border-b border-slate-800 pb-2">
             <button onclick="cambiarVista('login')" id="btn-login" class="font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all">Iniciar Sesión</button>
             <button onclick="cambiarVista('registro')" id="btn-registro" class="text-slate-400 pb-1 transition-all">Registrarse</button>
         </div>
@@ -74,184 +75,94 @@
             <form id="form-login" class="space-y-4">
                 <div>
                     <label class="block text-xs text-slate-400 mb-1">Correo Electrónico / User ID</label>
-                    <input type="text" name="username" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <input type="email" name="username" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">Contraseña / API Secret</label>
-                    <input type="password" name="password" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
+                    <input type="password" name="password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 
-                <!-- Enlace de Recuperación de Contraseña -->
-                <div class="flex justify-end text-xs">
-                    <button type="button" onclick="cambiarVista('recuperar')" class="text-amber-400 hover:underline">¿Olvidaste tu contraseña?</button>
+                <div class="text-right">
+                    <a href="#" onclick="alert('Función de recuperación vinculada al backend.'); return false;" class="text-xs text-amber-400 hover:underline">¿Olvidaste tu contraseña?</a>
                 </div>
 
                 <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all shadow-lg shadow-amber-500/20">Entrar a La Bóveda</button>
             </form>
         </div>
 
-        <!-- Contenedor de Registro -->
+        <!-- Contenedor de Registro (Oculto por defecto) -->
         <div id="contenido-registro" class="vista-formulario hidden">
             <form id="form-registro" class="space-y-4">
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">Nombre Completo / User ID</label>
-                    <input type="text" name="nombre" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <label class="block text-xs text-slate-400 mb-1">Nombre Completo o User ID</label>
+                    <input type="text" name="nombre" required placeholder="Tu nombre" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">API Key de Binance</label>
-                    <input type="text" name="api_key" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <label class="block text-xs text-slate-400 mb-1">Correo Electrónico</label>
+                    <input type="email" name="email" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">API Secret (Contraseña)</label>
-                    <input type="password" name="password" required class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
+                    <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
+                    <input type="password" name="password" required placeholder="Mínimo 6 caracteres" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
                 </div>
                 <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all shadow-lg shadow-amber-500/20">Crear Cuenta</button>
             </form>
-        </div>
-
-        <!-- Contenedor de Recuperación de Contraseña (Oculto por defecto) -->
-        <div id="contenido-recuperar" class="vista-formulario hidden space-y-4">
-            <div id="paso-solicitar-token">
-                <p class="text-xs text-slate-400 mb-3">Introduce tu ID de usuario o correo para generar un token de recuperación.</p>
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs text-slate-400 mb-1">Usuario / Correo</label>
-                        <input type="text" id="recup-user-id" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
-                    </div>
-                    <button type="button" onclick="solicitarTokenRecuperacion()" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all">Solicitar Token</button>
-                </div>
-            </div>
-
-            <div id="paso-cambiar-password" class="hidden space-y-3">
-                <p class="text-xs text-amber-400 mb-2">Token generado con éxito. Copia el token de abajo e introduce tu nueva contraseña:</p>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Token de Recuperación</label>
-                    <input type="text" id="recup-token" readonly class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-amber-300 text-xs font-mono outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Nueva Contraseña (mín. 6 caracteres)</label>
-                    <input type="password" id="recup-new-pass" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Confirmar Nueva Contraseña</label>
-                    <input type="password" id="recup-confirm-pass" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none">
-                </div>
-                <button type="button" onclick="ejecutarReseteoPassword()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded-lg transition-all">Restablecer Contraseña</button>
-            </div>
-
-            <div class="text-center mt-3">
-                <button type="button" onclick="cambiarVista('login')" class="text-xs text-slate-400 hover:text-white underline">← Volver al Iniciar Sesión</button>
-            </div>
         </div>
 
     </div>
 
     <!-- Scripts de la Aplicación -->
     <script>
-        // Detecta automáticamente si estamos local o en Render
-        const API_URL = window.location.origin;
+        const API_URL = 'http://127.0.0.1:8000';
 
+        // --- Gestión de Vistas ---
         function cambiarVista(vista) {
             const loginForm = document.getElementById('contenido-login');
             const registroForm = document.getElementById('contenido-registro');
-            const recuperarForm = document.getElementById('contenido-recuperar');
-            const pestanasNav = document.getElementById('pestanas-nav');
-            
             const btnLogin = document.getElementById('btn-login');
             const btnRegistro = document.getElementById('btn-registro');
 
-            // Ocultar todas las vistas
-            loginForm.classList.add('hidden');
-            registroForm.classList.add('hidden');
-            recuperarForm.classList.add('hidden');
-
             if (vista === 'login') {
+                registroForm.classList.add('hidden');
                 loginForm.classList.remove('hidden');
-                pestanasNav.classList.remove('hidden');
+                
                 btnLogin.className = "font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all";
                 btnRegistro.className = "text-slate-400 pb-1 transition-all";
-            } else if (vista === 'registro') {
+            } else {
+                loginForm.classList.add('hidden');
                 registroForm.classList.remove('hidden');
-                pestanasNav.classList.remove('hidden');
+                
                 btnRegistro.className = "font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all";
                 btnLogin.className = "text-slate-400 pb-1 transition-all";
-            } else if (vista === 'recuperar') {
-                recuperarForm.classList.remove('hidden');
-                pestanasNav.classList.add('hidden'); // Ocultar pestañas principales al recuperar
-                document.getElementById('paso-solicitar-token').classList.remove('hidden');
-                document.getElementById('paso-cambiar-password').classList.add('hidden');
             }
         }
 
-        // Lógica para solicitar token de recuperación al backend
-        async function solicitarTokenRecuperacion() {
-            const userId = document.getElementById('recup-user-id').value.trim();
-            if (!userId) {
-                alert("Por favor ingresa tu usuario o correo.");
-                return;
-            }
-
+        // --- Envío Seguro de Órdenes al Motor de Riesgo ---
+        async function enviarOrdenSegura(datosOrden) {
             try {
-                const response = await fetch(`${API_URL}/api/forgot-password`, {
+                const response = await fetch(`${API_URL}/api/trade/ejecutar`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId })
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(datosOrden)
                 });
 
                 const resultado = await response.json();
 
                 if (!response.ok) {
-                    alert("⚠️ Error: " + (resultado.detail || "No se pudo procesar la solicitud"));
-                    return;
+                    console.error("Orden bloqueada:", resultado.detail);
+                    alert("⚠️ Alerta de Seguridad: " + resultado.detail);
+                    return false;
                 }
 
-                // Mostrar el token de depuración recibido
-                document.getElementById('recup-token').value = resultado.debug_token;
-                document.getElementById('paso-solicitar-token').classList.add('hidden');
-                document.getElementById('paso-cambiar-password').classList.remove('hidden');
-                alert("✅ Token generado con éxito.");
+                console.log("Orden aprobada:", resultado.message);
+                alert("✅ Éxito: " + resultado.message);
+                return resultado.data;
 
             } catch (error) {
-                console.error("Error de red:", error);
-                alert("❌ Error al comunicarse con el servidor de La Bóveda.");
-            }
-        }
-
-        // Lógica para cambiar la contraseña usando el token
-        async function ejecutarReseteoPassword() {
-            const token = document.getElementById('recup-token').value;
-            const newPassword = document.getElementById('recup-new-pass').value;
-            const confirmPassword = document.getElementById('recup-confirm-pass').value;
-
-            if (!newPassword || !confirmPassword) {
-                alert("Por favor llena ambos campos de contraseña.");
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_URL}/api/reset-password`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        token: token,
-                        new_password: newPassword,
-                        confirm_password: confirmPassword
-                    })
-                });
-
-                const resultado = await response.json();
-
-                if (!response.ok) {
-                    alert("⚠️ Error: " + (resultado.detail || "Las contraseñas no coinciden o el token expiró"));
-                    return;
-                }
-
-                alert("🎉 ¡Contraseña restablecida con éxito! Ya puedes iniciar sesión.");
-                cambiarVista('login');
-
-            } catch (error) {
-                console.error("Error de red:", error);
-                alert("❌ Error al comunicarse con el servidor.");
+                console.error("Error de red o conexión con el backend:", error);
+                alert("❌ Error al comunicarse con La Bóveda.");
             }
         }
     </script>
