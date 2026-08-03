@@ -162,14 +162,21 @@ def estado_cuenta(user_id: str):
         if is_testnet:
             exchange.set_sandbox_mode(True)
 
-        # Consultar balance en la API de Binance
+        # 1. Consultar balance en la API de Binance
         balance = exchange.fetch_balance()
         free_usdt = balance['free'].get('USDT', 0.0)
+
+        # 2. Consultar órdenes u operaciones activas en tiempo real
+        try:
+            open_orders = exchange.fetch_open_orders()
+            total_operaciones = len(open_orders)
+        except Exception:
+            total_operaciones = 0
 
         return {
             "status": f"Conectado ({mode.upper()})",
             "balance_total": f"{free_usdt:.2f} USDT",
-            "operaciones_activas": 0
+            "operaciones_activas": total_operaciones
         }
         
     except ccxt.AuthenticationError:
