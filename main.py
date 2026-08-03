@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import sqlite3
+import ccxt  # Librería para conectar con Binance y otros exchanges
 
 app = FastAPI()
 
@@ -143,14 +144,41 @@ def estado_cuenta(user_id: str):
                 "operaciones_activas": 0
             }
         
-        # Aquí puedes integrar la llamada real a la API de Binance usando api_key y api_secret
-        
+        # Conexión real a Binance usando CCXT
+        is_testnet = (mode == "testnet")
+        exchange = ccxt.binance({
+            'apiKey': api_key,
+            'secret': api_secret,
+            'enableRateLimit': True,
+            'options': {
+                'defaultType': 'future'
+            }
+        })
+
+        if is_testnet:
+            exchange.set_sandbox_mode(True)
+
+        # Consultar balance en la API de Binance
+        balance = exchange.fetch_balance()
+        free_usdt = balance['free'].get('USDT', 0.0)
+
         return {
-            "status": f"Conectado ({mode})",
+            "status": f"Conectado ({mode.upper()})",
+            "balance_total": f"{free_usdt:.2f} USDT",
+            "operaciones_activas": 0
+        }
+        
+    except ccxt.AuthenticationError:
+        return {
+            "status": "Error: Credenciales inválidas",
             "balance_total": "0.00 USDT",
             "operaciones_activas": 0
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "status": "Error de conexión con Binance",
+            "balance_total": "0.00 USDT",
+            "operaciones_activas": 0
+        }
     finally:
         conn.close()
