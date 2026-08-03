@@ -3,300 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Bóveda - Broker de Criptomonedas</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @keyframes floatUp {
-            0% { transform: translateY(105vh) rotate(0deg); opacity: 0; }
-            15% { opacity: 0.25; }
-            85% { opacity: 0.25; }
-            100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
-        }
-        .icono-flotante {
-            position: absolute;
-            animation: floatUp linear infinite;
-        }
-        @keyframes scrollLeftToRight {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100vw); }
-        }
-        @keyframes scrollRightToLeft {
-            0% { transform: translateX(100vw); }
-            100% { transform: translateX(-100%); }
-        }
-        .mensaje-izq-der {
-            position: absolute;
-            white-space: nowrap;
-            animation: scrollLeftToRight linear infinite;
-        }
-        .mensaje-der-izq {
-            position: absolute;
-            white-space: nowrap;
-            animation: scrollRightToLeft linear infinite;
-        }
-    </style>
+    <title>La Bóveda - Panel de Control</title>
+    <!-- Tailwind CSS para un diseño limpio y moderno -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
-<body class="bg-slate-950 text-white h-screen w-screen flex items-center justify-center p-4 relative overflow-hidden m-0">
+<body class="bg-gray-900 text-white font-sans antialiased min-h-screen flex flex-col items-center justify-center p-4">
 
-    <!-- Elementos flotantes de fondo -->
-    <div class="icono-flotante text-amber-400 text-3xl font-bold pointer-events-none" style="left: 10%; animation-duration: 9s;">₿</div>
-    <div class="icono-flotante text-amber-500 text-2xl font-bold pointer-events-none" style="left: 30%; animation-duration: 13s; animation-delay: 2s;">Ξ</div>
-    <div class="icono-flotante text-yellow-400 text-2xl font-bold pointer-events-none" style="left: 70%; animation-duration: 11s; animation-delay: 1s;">⚡</div>
-    <div class="icono-flotante text-amber-400 text-3xl font-bold pointer-events-none" style="left: 85%; animation-duration: 15s; animation-delay: 3s;">SOL</div>
-
-    <!-- Mensajes deslizantes de fondo -->
-    <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm pointer-events-none" style="top: 10%; animation-duration: 22s;">⚡ BTC superando resistencia clave en $92,000 USD</div>
-    <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm pointer-events-none" style="top: 22%; animation-duration: 25s; animation-delay: 3s;">💡 Invierte con inteligencia, el mercado es versátil.</div>
-    <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm pointer-events-none" style="top: 35%; animation-duration: 20s; animation-delay: 1s;">📊 Alta liquidez en pares institucionales de Ethereum</div>
-    <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm pointer-events-none" style="top: 48%; animation-duration: 28s; animation-delay: 5s;">🛡️ La gestión del riesgo es la clave de la rentabilidad.</div>
-    <div class="mensaje-izq-der text-amber-400/40 font-mono text-sm pointer-events-none" style="top: 61%; animation-duration: 24s; animation-delay: 2s;">🔥 Solana registra nuevo récord de transacciones por segundo</div>
-    <div class="mensaje-der-izq text-amber-500/40 font-mono text-sm pointer-events-none" style="top: 74%; animation-duration: 26s; animation-delay: 4s;">📈 Analiza los gráficos con paciencia, la oportunidad perfecta llegará.</div>
-    <div class="mensaje-izq-der text-yellow-400/40 font-mono text-sm pointer-events-none" style="top: 86%; animation-duration: 21s; animation-delay: 1.5s;">🌐 Mercado global de activos digitales operando con normalidad</div>
-    <div class="mensaje-der-izq text-amber-300/40 font-mono text-sm pointer-events-none" style="top: 93%; animation-duration: 27s; animation-delay: 6s;">🔒 Protege tu capital antes de buscar ganancias.</div>
-
-    <!-- Ventana Principal Fija en el Centro -->
-    <div id="contenedor-auth" class="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md z-10 static">
+    <div class="w-full max-w-md bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700">
         
+        <!-- Encabezado -->
         <div class="text-center mb-6">
-            <h1 class="text-2xl font-black tracking-wider text-amber-400">La Bóveda</h1>
-            <p class="text-xs text-slate-400 mt-1">Plataforma Segura de Trading y Activos Digitales</p>
+            <h1 class="text-2xl font-bold tracking-wider text-blue-400">LA BÓVEDA</h1>
+            <p class="text-xs text-gray-400 mt-1">Panel de Control y Gestión de Riesgo</p>
         </div>
 
-        <div id="pestanas-nav" class="flex justify-center space-x-6 mb-6 border-b border-slate-800 pb-2">
-            <button onclick="cambiarVista('login')" id="btn-login" class="font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all">Iniciar Sesión</button>
-            <button onclick="cambiarVista('registro')" id="btn-registro" class="text-slate-400 pb-1 transition-all">Registrarse</button>
-        </div>
-
-        <!-- Login -->
-        <div id="contenido-login" class="vista-formulario">
-            <form id="form-login" class="space-y-4" onsubmit="manejarLogin(event)">
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Correo Electrónico</label>
-                    <input type="email" id="login-username" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
-                    <input type="password" id="login-password" required placeholder="••••••••" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
-                </div>
-                
-                <div class="text-right">
-                    <a href="#" onclick="solicitarRecuperacion(); return false;" class="text-xs text-amber-400 hover:underline">¿Olvidaste tu contraseña?</a>
-                </div>
-
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all shadow-lg shadow-amber-500/20">Entrar a La Bóveda</button>
-            </form>
-        </div>
-
-        <!-- Registro con confirmación de contraseña -->
-        <div id="contenido-registro" class="vista-formulario hidden">
-            <form id="form-registro" class="space-y-4" onsubmit="manejarRegistro(event)">
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Correo Electrónico</label>
-                    <input type="email" id="reg-email" required placeholder="tu@correo.com" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Contraseña</label>
-                    <input type="password" id="reg-password" required placeholder="Mínimo 6 caracteres" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Confirmar Contraseña</label>
-                    <input type="password" id="reg-password-confirm" required placeholder="Repite tu contraseña" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-sm focus:border-amber-400 outline-none transition-all">
-                </div>
-                <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 rounded-lg transition-all shadow-lg shadow-amber-500/20">Registrarse</button>
-            </form>
-        </div>
-
-        <!-- Panel Interno para configurar API de Binance y ver métricas -->
-        <div id="panel-interno" class="hidden space-y-4">
-            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
-                <span class="text-xs text-amber-400 uppercase font-mono tracking-widest">Estado: Sesión Activa</span>
-                <h2 id="saludo-usuario" class="text-lg font-bold mt-1 text-white">¡Bienvenido a La Bóveda!</h2>
-                <p class="text-xs text-slate-400 mt-1">Configura tus credenciales de Binance para operar.</p>
+        <!-- Sección de Estado de Conexión -->
+        <div class="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm text-gray-400">Estado:</span>
+                <span id="estadoConexion" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-900 text-yellow-300">Cargando...</span>
             </div>
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-sm text-gray-400">Balance Disponible:</span>
+                <span id="balanceTotal" class="text-lg font-bold text-green-400">0.00 USDT</span>
+            </div>
+        </div>
+
+        <!-- Métricas de Operaciones y Techo -->
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+                <span class="text-gray-400 text-xs">Techo Actual</span>
+                <p id="displayTecho" class="text-white font-bold text-base mt-1">500.00 USDT</p>
+            </div>
+            <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+                <span class="text-gray-400 text-xs">Op. Activas</span>
+                <p id="displayOperaciones" class="text-white font-bold text-base mt-1">0</p>
+            </div>
+        </div>
+
+        <!-- Formulario de Configuración de Techo Dinámico -->
+        <div class="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-300 mb-1">Ajustar Capital Operativo</h3>
+            <p class="text-xs text-gray-500 mb-3">Máximo permitido por seguridad: 500 USDT.</p>
             
-            <!-- Sección de Métricas del Bot -->
-            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2">
-                <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">📊 Estado del Bot y Cuenta</h3>
-                <div class="text-xs text-slate-300 space-y-1">
-                    <p>Conexión: <span id="bot-status" class="text-amber-400 font-bold">Cargando...</span></p>
-                    <p>Balance Total: <span id="bot-balance" class="font-bold">--</span></p>
-                    <p>Órdenes Activas: <span id="bot-orders" class="font-bold">0</span></p>
-                </div>
+            <div class="flex space-x-2">
+                <input type="number" id="inputTecho" max="500" min="1" placeholder="Ej. 300" 
+                       class="bg-gray-800 text-white text-sm px-3 py-2 rounded-lg w-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="guardarTecho()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition cursor-pointer">
+                    Guardar
+                </button>
             </div>
+            <p id="mensajeTecho" class="text-xs mt-2 text-center h-4"></p>
+        </div>
 
-            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
-                <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Vincular API de Binance</h3>
+        <!-- Sección de Configuración de Credenciales API -->
+        <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
+            <h3 class="text-sm font-semibold text-gray-300 mb-3">Credenciales de Binance</h3>
+            
+            <div class="space-y-3">
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">Binance API Key</label>
-                    <input type="text" id="binance-apikey" placeholder="Ingresa tu API Key" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-xs focus:border-amber-400 outline-none">
+                    <label class="block text-xs text-gray-400 mb-1">Correo / Usuario ID</label>
+                    <input type="text" id="userId" placeholder="tu_correo@dominio.com" 
+                           class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div>
-                    <label class="block text-xs text-slate-400 mb-1">Binance API Secret</label>
-                    <input type="password" id="binance-apisecret" placeholder="Ingresa tu API Secret" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-white text-xs focus:border-amber-400 outline-none">
+                    <label class="block text-xs text-gray-400 mb-1">API Key</label>
+                    <input type="text" id="apiKey" placeholder="Ingresa tu API Key" 
+                           class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-                <button onclick="guardarApiKeys()" class="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 border border-amber-500/50 font-bold py-2 rounded-lg text-xs transition-all">Guardar Credenciales de Binance</button>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">API Secret</label>
+                    <input type="password" id="apiSecret" placeholder="Ingresa tu API Secret" 
+                           class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Modo de Operación</label>
+                    <select id="modeSelect" class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="testnet">Testnet (Pruebas)</option>
+                        <option value="mainnet">Mainnet (Real)</option>
+                    </select>
+                </div>
+                <button onclick="guardarCredenciales()" 
+                        class="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-lg font-medium transition cursor-pointer mt-2">
+                    Vincular y Guardar
+                </button>
             </div>
-
-            <button onclick="cerrarSesion()" class="w-full bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/50 font-bold py-2 rounded-lg text-xs transition-all">Cerrar Sesión</button>
+            <p id="mensajeCredenciales" class="text-xs mt-2 text-center h-4"></p>
         </div>
 
     </div>
 
+    <!-- Script de Automatización y Control -->
     <script>
-        const API_URL = '';
+        // Función para guardar credenciales en el backend
+        async function guardarCredenciales() {
+            const userId = document.getElementById('userId').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const apiSecret = document.getElementById('apiSecret').value.trim();
+            const mode = document.getElementById('modeSelect').value;
+            const msgEl = document.getElementById('mensajeCredenciales');
 
-        function cambiarVista(vista) {
-            const loginForm = document.getElementById('contenido-login');
-            const registroForm = document.getElementById('contenido-registro');
-            const btnLogin = document.getElementById('btn-login');
-            const btnRegistro = document.getElementById('btn-registro');
-
-            if (vista === 'login') {
-                registroForm.classList.add('hidden');
-                loginForm.classList.remove('hidden');
-                btnLogin.className = "font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all";
-                btnRegistro.className = "text-slate-400 pb-1 transition-all";
-            } else {
-                loginForm.classList.add('hidden');
-                registroForm.classList.remove('hidden');
-                btnRegistro.className = "font-bold text-amber-400 border-b-2 border-amber-400 pb-1 transition-all";
-                btnLogin.className = "text-slate-400 pb-1 transition-all";
-            }
-        }
-
-        async function manejarRegistro(event) {
-            event.preventDefault();
-            const email = document.getElementById('reg-email').value.trim();
-            const password = document.getElementById('reg-password').value.trim();
-            const passwordConfirm = document.getElementById('reg-password-confirm').value.trim();
-
-            if (password !== passwordConfirm) {
-                alert("⚠️ Las contraseñas no coinciden.");
+            if (!userId || !apiKey || !apiSecret) {
+                msgEl.style.color = "#f87171";
+                msgEl.innerText = "Por favor completa todos los campos.";
                 return;
             }
 
+            // Guardar el user_id en el almacenamiento local del navegador para futuras peticiones
+            localStorage.setItem('user_id', userId);
+
             try {
-                const response = await fetch(`${API_URL}/api/register`, {
+                const response = await fetch('/api/token', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, password: password })
+                    body: JSON.stringify({ user_id: userId, api_key: apiKey, api_secret: apiSecret, mode: mode })
                 });
-                const resultado = await response.json();
-                if (!response.ok) {
-                    alert("⚠️ Error en el registro: " + (resultado.detail || "Verifica los datos"));
-                    return;
-                }
-                alert("✅ ¡Cuenta creada con éxito! Ahora inicia sesión.");
-                cambiarVista('login');
-            } catch (error) {
-                alert("❌ Error de red al conectar con La Bóveda.");
-            }
-        }
 
-        async function manejarLogin(event) {
-            event.preventDefault();
-            const email = document.getElementById('login-username').value.trim();
-            const password = document.getElementById('login-password').value.trim();
-
-            try {
-                const response = await fetch(`${API_URL}/api/token`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: email, api_key: email, api_secret: password, mode: "testnet" })
-                });
-                const resultado = await response.json();
-                if (!response.ok) {
-                    alert("⚠️ Credenciales incorrectas: " + (resultado.detail || "No se pudo iniciar sesión"));
-                    return;
-                }
-                alert("✅ ¡Inicio de sesión exitoso!");
-                localStorage.setItem('access_token', resultado.access_token);
-                localStorage.setItem('user_id', email);
-                mostrarPanelInterno(email);
-            } catch (error) {
-                alert("❌ Error al comunicarse con el servidor.");
-            }
-        }
-
-        function mostrarPanelInterno(userId) {
-            document.getElementById('contenido-login').classList.add('hidden');
-            document.getElementById('contenido-registro').classList.add('hidden');
-            document.getElementById('pestanas-nav').classList.add('hidden');
-            const panel = document.getElementById('panel-interno');
-            panel.classList.remove('hidden');
-            document.getElementById('saludo-usuario').innerText = `¡Hola, ${userId}!`;
-            
-            // Cargar estado de Binance al entrar al panel
-            cargarEstadoBinance(userId);
-        }
-
-        async function cargarEstadoBinance(userId) {
-            try {
-                const response = await fetch(`${API_URL}/api/estado-cuenta/${userId}`);
-                const data = await response.json();
                 if (response.ok) {
-                    document.getElementById('bot-status').innerText = data.status;
-                    document.getElementById('bot-balance').innerText = data.balance_total;
-                    document.getElementById('bot-orders').innerText = data.operaciones_activas;
+                    msgEl.style.color = "#4ade80";
+                    msgEl.innerText = "¡Credenciales guardadas con éxito!";
+                    consultarEstadoCuenta(); // Refrescar métricas de inmediato
+                } else {
+                    msgEl.style.color = "#f87171";
+                    msgEl.innerText = "Error al guardar credenciales.";
                 }
             } catch (error) {
-                console.error("Error al obtener el estado de la cuenta:", error);
-                document.getElementById('bot-status').innerText = "Error de sincronización";
+                msgEl.style.color = "#f87171";
+                msgEl.innerText = "Error de conexión con el servidor.";
             }
         }
 
-        async function guardarApiKeys() {
-            const apiKey = document.getElementById('binance-apikey').value.trim();
-            const apiSecret = document.getElementById('binance-apisecret').value.trim();
+        // Función para guardar el techo de capital
+        async function guardarTecho() {
+            const nuevoTecho = parseFloat(document.getElementById('inputTecho').value);
+            const msgEl = document.getElementById('mensajeTecho');
             const userId = localStorage.getItem('user_id');
 
-            if (!apiKey || !apiSecret) {
-                alert("⚠️ Ingresa tanto la API Key como el API Secret.");
+            if (!userId) {
+                msgEl.style.color = "#f87171";
+                msgEl.innerText = "Primero ingresa tu correo en la sección de abajo.";
+                return;
+            }
+
+            if (isNaN(nuevoTecho) || nuevoTecho <= 0) {
+                msgEl.style.color = "#f87171";
+                msgEl.innerText = "Ingresa un valor válido mayor a 0.";
+                return;
+            }
+
+            if (nuevoTecho > 500) {
+                msgEl.style.color = "#f87171";
+                msgEl.innerText = "Límite superado: Máximo 500 USDT permitidos.";
                 return;
             }
 
             try {
-                const response = await fetch(`${API_URL}/api/token`, {
+                const response = await fetch('/api/configurar-techo', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, api_key: apiKey, api_secret: apiSecret, mode: "testnet" })
+                    body: JSON.stringify({ user_id: userId, techo_capital: nuevoTecho })
                 });
+
+                const data = await response.json();
+
                 if (response.ok) {
-                    alert("✅ ¡Credenciales de Binance guardadas con éxito!");
-                    cargarEstadoBinance(userId);
+                    msgEl.style.color = "#4ade80";
+                    msgEl.innerText = data.message;
+                    document.getElementById('displayTecho').innerText = nuevoTecho.toFixed(2) + " USDT";
                 } else {
-                    alert("⚠️ Error al guardar las credenciales.");
+                    msgEl.style.color = "#f87171";
+                    msgEl.innerText = data.detail || "Error al actualizar techo.";
                 }
-            } catch (e) {
-                alert("❌ Error de conexión.");
+            } catch (error) {
+                msgEl.style.color = "#f87171";
+                msgEl.innerText = "Error de conexión.";
             }
         }
 
-        async function cerrarSesion() {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_id');
-            location.reload();
-        }
-
-        async function solicitarRecuperacion() {
-            const userId = prompt("Ingresa tu Correo para recuperar la contraseña:");
+        // Función para consultar dinámicamente el estado de cuenta y métricas en tiempo real
+        async function consultarEstadoCuenta() {
+            const userId = localStorage.getItem('user_id');
             if (!userId) return;
+
             try {
-                const response = await fetch(`${API_URL}/api/forgot-password`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId })
-                });
-                const res = await response.json();
+                const response = await fetch(`/api/estado-cuenta/${userId}`);
                 if (response.ok) {
-                    alert("🔑 Token de recuperación generado:\n\n" + res.debug_token);
-                } else {
-                    alert("⚠️ " + res.detail);
+                    const data = await response.json();
+                    
+                    // Actualizar Balance
+                    document.getElementById('balanceTotal').innerText = data.balance_total;
+                    
+                    // Actualizar Operaciones Activas
+                    document.getElementById('displayOperaciones').innerText = data.operaciones_activas;
+                    
+                    // Actualizar Techo Actual
+                    if (data.techo_capital) {
+                        document.getElementById('displayTecho').innerText = data.techo_capital.toFixed(2) + " USDT";
+                    }
+
+                    // Actualizar Badge de Estado
+                    const estadoEl = document.getElementById('estadoConexion');
+                    estadoEl.innerText = data.status;
+                    if (data.status.includes("Conectado")) {
+                        estadoEl.className = "text-xs font-semibold px-2.5 py-1 rounded-full bg-green-900 text-green-300";
+                    } else {
+                        estadoEl.className = "text-xs font-semibold px-2.5 py-1 rounded-full bg-red-900 text-red-300";
+                    }
                 }
-            } catch (err) {
-                alert("❌ Error al solicitar recuperación.");
+            } catch (error) {
+                console.error("No se pudo obtener el estado de cuenta:", error);
             }
         }
+
+        // Ejecutar la consulta automáticamente cada 10 segundos si hay un usuario registrado
+        setInterval(() => {
+            const userId = localStorage.getItem('user_id');
+            if (userId) {
+                consultarEstadoCuenta();
+            }
+        }, 10000);
     </script>
 </body>
 </html>
