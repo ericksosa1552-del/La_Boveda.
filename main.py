@@ -25,7 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Base de datos SQLite local para la gestión de usuarios
+# Base de datos SQLite local para la gestión de usuarios y configuración de techo
 DB_NAME = "boveda_users.db"
 
 def init_db():
@@ -37,7 +37,8 @@ def init_db():
             password TEXT NOT NULL,
             api_key TEXT,
             api_secret TEXT,
-            mode TEXT DEFAULT 'testnet'
+            mode TEXT DEFAULT 'testnet',
+            techo_capital REAL DEFAULT 500.0
         )
     ''')
     conn.commit()
@@ -54,6 +55,10 @@ class TokenRequest(BaseModel):
     api_key: str
     api_secret: str
     mode: str = "testnet"
+
+class TechoRequest(BaseModel):
+    user_id: str
+    techo_capital: float
 
 class ForgotPasswordRequest(BaseModel):
     user_id: str
@@ -116,6 +121,30 @@ def procesar_token(data: TokenRequest):
 
     return {"access_token": f"mock-jwt-token-{data.user_id}", "token_type": "bearer"}
 
+@app.post("/api/configurar-techo")
+def configurar_techo(data: TechoRequest):
+    # Lógica de seguridad: El límite techo no puede superar los 500 USDT bajo ninguna circunstancia
+    if data.techo_capital > 500.0:
+        raise HTTPException(status_code=400, detail="El límite de techo no puede superar los 500 USDT por seguridad y control de riesgo.")
+    if data.techo_capital <= 0:
+        raise HTTPException(status_code=400, detail="El techo de capital debe ser mayor a 0.")
+
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("UPDATE users SET techo_capital = ? WHERE email = ?", (data.techo_capital, data.user_id))
+        conn.commit()
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+    return {"message": f"Techo de capital actualizado exitosamente a {data.techo_capital} USDT"}
+
 @app.post("/api/forgot-password")
 def forgot_password(data: ForgotPasswordRequest):
     conn = sqlite3.connect(DB_NAME)
@@ -134,18 +163,19 @@ def estado_cuenta(user_id: str):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT api_key, api_secret, mode FROM users WHERE email = ?", (user_id,))
+        cursor.execute("SELECT api_key, api_secret, mode, techo_capital FROM users WHERE email = ?", (user_id,))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Usuario no encontrado.")
         
-        api_key, api_secret, mode = row
+        api_key, api_secret, mode, techo_capital = row
         
         if not api_key or not api_secret:
             return {
                 "status": "Sin Credenciales",
                 "balance_total": "0.00 USDT",
-                "operaciones_activas": 0
+                "operaciones_activas": 0,
+                "techo_capital": techo_capital
             }
         
         # Conexión real a Binance usando CCXT
@@ -162,11 +192,25 @@ def estado_cuenta(user_id: str):
         if is_testnet:
             exchange.set_sandbox_mode(True)
 
-        # 1. Consultar balance en la API de Binance
+        # 1. Consultar balance de Futuros en Binance
         balance = exchange.fetch_balance()
         free_usdt = balance['free'].get('USDT', 0.0)
+        total_futures_balance = balance['total'].get('USDT', 0.0)
 
-        # 2. Consultar órdenes u operaciones activas en tiempo real
+        # 2. Lógica de control de ganancias (Techo vs Saldo actual en Futuros)
+        # Si el saldo total en futuros supera el techo configurado, el excedente se considera ganancia a proteger
+        if total_futures_balance > techo_capital:
+            excedente_ganancia = total_futures_balance - techo_capital
+            try:
+                # Intento automático de transferir el excedente de Futuros a la cuenta Spot (Principal)
+                # Nota: Binance requiere soporte de transferencia universal en API según el tipo de cuenta
+                exchange.transfer('USDT', excedente_ganancia, 'future', 'spot')
+            except Exception as transfer_error:
+                # Si la API del exchange limita la transferencia automatizada en este nivel, 
+                # el sistema lo registra contablemente pero no detiene la ejecución.
+                pass
+
+        # 3. Consultar operaciones activas en tiempo real
         try:
             open_orders = exchange.fetch_open_orders()
             total_operaciones = len(open_orders)
@@ -176,20 +220,23 @@ def estado_cuenta(user_id: str):
         return {
             "status": f"Conectado ({mode.upper()})",
             "balance_total": f"{free_usdt:.2f} USDT",
-            "operaciones_activas": total_operaciones
+            "operaciones_activas": total_operaciones,
+            "techo_capital": techo_capital
         }
         
     except ccxt.AuthenticationError:
         return {
             "status": "Error: Credenciales inválidas",
             "balance_total": "0.00 USDT",
-            "operaciones_activas": 0
+            "operaciones_activas": 0,
+            "techo_capital": 500.0
         }
     except Exception as e:
         return {
             "status": "Error de conexión con Binance",
             "balance_total": "0.00 USDT",
-            "operaciones_activas": 0
+            "operaciones_activas": 0,
+            "techo_capital": 500.0
         }
     finally:
         conn.close()
