@@ -3,7 +3,7 @@ import hmac
 import hashlib
 import time
 import requests
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -123,3 +123,34 @@ def forgot_password(data: ForgotPasswordRequest):
         raise HTTPException(status_code=404, detail="El correo no está registrado.")
     
     return {"debug_token": f"RESET-PASS-TOKEN-SECURE-9941"}
+
+@app.get("/api/estado-cuenta/{user_id}")
+def estado_cuenta(user_id: str):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT api_key, api_secret, mode FROM users WHERE email = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+        
+        api_key, api_secret, mode = row
+        
+        if not api_key or not api_secret:
+            return {
+                "status": "Sin Credenciales",
+                "balance_total": "0.00 USDT",
+                "operaciones_activas": 0
+            }
+        
+        # Aquí puedes integrar la llamada real a la API de Binance usando api_key y api_secret
+        
+        return {
+            "status": f"Conectado ({mode})",
+            "balance_total": "0.00 USDT",
+            "operaciones_activas": 0
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
