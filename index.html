@@ -106,7 +106,7 @@
             </form>
         </div>
 
-        <!-- Panel Interno para configurar API de Binance -->
+        <!-- Panel Interno para configurar API de Binance y ver métricas -->
         <div id="panel-interno" class="hidden space-y-4">
             <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center">
                 <span class="text-xs text-amber-400 uppercase font-mono tracking-widest">Estado: Sesión Activa</span>
@@ -114,6 +114,16 @@
                 <p class="text-xs text-slate-400 mt-1">Configura tus credenciales de Binance para operar.</p>
             </div>
             
+            <!-- Sección de Métricas del Bot -->
+            <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-2">
+                <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">📊 Estado del Bot y Cuenta</h3>
+                <div class="text-xs text-slate-300 space-y-1">
+                    <p>Conexión: <span id="bot-status" class="text-amber-400 font-bold">Cargando...</span></p>
+                    <p>Balance Total: <span id="bot-balance" class="font-bold">--</span></p>
+                    <p>Órdenes Activas: <span id="bot-orders" class="font-bold">0</span></p>
+                </div>
+            </div>
+
             <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl space-y-3">
                 <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Vincular API de Binance</h3>
                 <div>
@@ -215,6 +225,24 @@
             const panel = document.getElementById('panel-interno');
             panel.classList.remove('hidden');
             document.getElementById('saludo-usuario').innerText = `¡Hola, ${userId}!`;
+            
+            // Cargar estado de Binance al entrar al panel
+            cargarEstadoBinance(userId);
+        }
+
+        async function cargarEstadoBinance(userId) {
+            try {
+                const response = await fetch(`${API_URL}/api/estado-cuenta/${userId}`);
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('bot-status').innerText = data.status;
+                    document.getElementById('bot-balance').innerText = data.balance_total;
+                    document.getElementById('bot-orders').innerText = data.operaciones_activas;
+                }
+            } catch (error) {
+                console.error("Error al obtener el estado de la cuenta:", error);
+                document.getElementById('bot-status').innerText = "Error de sincronización";
+            }
         }
 
         async function guardarApiKeys() {
@@ -235,6 +263,7 @@
                 });
                 if (response.ok) {
                     alert("✅ ¡Credenciales de Binance guardadas con éxito!");
+                    cargarEstadoBinance(userId);
                 } else {
                     alert("⚠️ Error al guardar las credenciales.");
                 }
