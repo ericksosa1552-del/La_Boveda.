@@ -8,7 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import sqlite3
-import ccxt  # Librería para conectar con Binance y otros exchanges
+
+# ATENCIÓN: Si al ejecutar este archivo Python te da un error que dice "No module named 'ccxt'", 
+# recuerda abrir tu terminal y escribir el siguiente comando para instalarlo:
+# pip install ccxt
+import ccxt
 
 app = FastAPI()
 
