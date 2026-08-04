@@ -9,6 +9,10 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 import sqlite3
 
+# Cargar variables de entorno desde el archivo .env ubicado localmente
+from dotenv import load_dotenv
+load_dotenv()
+
 # ATENCIÓN: Si al ejecutar este archivo Python te da un error que dice "No module named 'ccxt'", 
 # recuerda abrir tu terminal y escribir el siguiente comando para instalarlo:
 # pip install ccxt
@@ -24,6 +28,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Credenciales y configuración del sistema de alertas de Telegram
+TELEGRAM_BOT_TOKEN = "8610300157:AAG86zeR5BBF-o42_ZyyJPYneZf3uzmBxes"
+TELEGRAM_CHAT_ID = "8536842251"
+
+def enviar_alerta_telegram(mensaje: str):
+    """
+    Envía una notificación instantánea al chat de Telegram de La Bóveda.
+    """
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": f"🚨 *LA BÓVEDA - ALERTA* 🚨\n\n{mensaje}",
+        "parse_mode": "Markdown"
+    }
+    try:
+        response = requests.post(url, json=payload)
+        if response.status_code == 200:
+            return True
+        else:
+            print(f"[Error Telegram] {response.text}")
+            return False
+    except Exception as e:
+        print(f"[Error de conexión con Telegram]: {e}")
+        return False
 
 # Base de datos SQLite local para la gestión de usuarios y configuración de techo
 DB_NAME = "boveda_users.db"
@@ -45,6 +74,15 @@ def init_db():
     conn.close()
 
 init_db()
+
+# Verificación de inicio de variables de entorno (Binance Testnet)
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+
+if BINANCE_API_KEY:
+    enviar_alerta_telegram("✅ La Bóveda se ha inicializado correctamente y ha cargado las credenciales del entorno local.")
+else:
+    enviar_alerta_telegram("⚠️ Advertencia: No se detectaron llaves predeterminadas de Binance en el archivo .env local al arrancar.")
 
 class RegistroRequest(BaseModel):
     email: str
@@ -198,16 +236,11 @@ def estado_cuenta(user_id: str):
         total_futures_balance = balance['total'].get('USDT', 0.0)
 
         # 2. Lógica de control de ganancias (Techo vs Saldo actual en Futuros)
-        # Si el saldo total en futuros supera el techo configurado, el excedente se considera ganancia a proteger
         if total_futures_balance > techo_capital:
             excedente_ganancia = total_futures_balance - techo_capital
             try:
-                # Intento automático de transferir el excedente de Futuros a la cuenta Spot (Principal)
-                # Nota: Binance requiere soporte de transferencia universal en API según el tipo de cuenta
                 exchange.transfer('USDT', excedente_ganancia, 'future', 'spot')
             except Exception as transfer_error:
-                # Si la API del exchange limita la transferencia automatizada en este nivel, 
-                # el sistema lo registra contablemente pero no detiene la ejecución.
                 pass
 
         # 3. Consultar operaciones activas en tiempo real
