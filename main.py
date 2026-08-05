@@ -18,7 +18,8 @@ def enviar_alerta_telegram(mensaje: str):
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         payload = {
             "chat_id": TELEGRAM_CHAT_ID,
-            "text": mensaje
+            "text": mensaje,
+            "parse_mode": "Markdown"
         }
         response = requests.post(url, json=payload, timeout=5)
         print(f">>> TELEGRAM STATUS: {response.status_code}")
@@ -164,8 +165,13 @@ def simular_operacion(email: str = Form(...)):
     conn.commit()
     conn.close()
 
-    # DISPARAR ALERTA A TELEGRAM
-    mensaje_alerta = f"🚨 *¡Oportunidad Detectada y Comprada!*\\nPar: `BTC/USDT`\\nMonto: `{monto_operacion} USDT`\\nEstado: `EJECUTADA EXITOSAMENTE`"
+    # DISPARAR ALERTA A TELEGRAM CON FORMATO LIMPIO
+    mensaje_alerta = (
+        "🚨 *¡Oportunidad Detectada y Comprada!*\n"
+        "Par: `BTC/USDT`\n"
+        f"Monto: `{monto_operacion} USDT`\n"
+        "Estado: `EJECUTADA EXITOSAMENTE`"
+    )
     enviar_alerta_telegram(mensaje_alerta)
 
     return RedirectResponse(url=f"/panel?email={email}", status_code=303)
