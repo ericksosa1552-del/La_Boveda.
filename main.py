@@ -30,13 +30,13 @@ def enviar_alerta_telegram(mensaje: str):
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Tabla de usuarios
+    # Tabla de usuarios con campos para API Keys y Modo
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             email TEXT PRIMARY KEY,
-            api_key TEXT,
-            api_secret TEXT,
-            mode TEXT,
+            api_key TEXT DEFAULT '',
+            api_secret TEXT DEFAULT '',
+            mode TEXT DEFAULT 'SIMULACIÓN',
             techo_capital REAL DEFAULT 100.0
         )
     ''')
@@ -89,9 +89,13 @@ def login(email: str = Form(...)):
 def panel(email: str):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT techo_capital FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT techo_capital, mode, api_key, api_secret FROM users WHERE email = ?", (email,))
     row = cursor.fetchone()
+    
     techo = row[0] if row else 100.0
+    mode = row[1] if row else 'SIMULACIÓN'
+    api_key_val = row[2] if row else ''
+    api_secret_val = row[3] if row else ''
 
     cursor.execute("SELECT par, tipo, monto, estado, timestamp FROM operaciones WHERE email = ? ORDER BY id DESC LIMIT 10", (email,))
     ops = cursor.fetchall()
@@ -100,6 +104,8 @@ def panel(email: str):
     ops_html = ""
     for op in ops:
         ops_html += f"<tr><td>{op[0]}</td><td>{op[1]}</td><td>{op[2]} USDT</td><td style='color:#0ecb81;'>{op[3]}</td><td style='font-size:12px; color:#848e9c;'>{op[4]}</td></tr>"
+
+    mode_color = "#0ecb81" if mode == "EN VIVO" else "#f0b90b"
 
     return f"""
     <html>
@@ -113,6 +119,7 @@ def panel(email: str):
             .card {{ background: #14151a; border: 1px solid #2b313a; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
             button {{ background: #f0b90b; color: #000; border: none; padding: 12px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }}
             button:hover {{ background: #fcd535; }}
+            input, select {{ padding: 10px; width: 100%; box-sizing: border-box; border-radius: 5px; border: 1px solid #474d57; background: #0b0e11; color: white; margin-top: 5px; margin-bottom: 15px; }}
             table {{ width: 100%; border-collapse: collapse; margin-top: 15px; }}
             th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #2b313a; font-size: 14px; }}
             th {{ color: #848e9c; }}
@@ -121,14 +128,35 @@ def panel(email: str):
     <body>
         <div class="container">
             <h1>LA BÓVEDA</h1>
-            <div class="subtitle">Usuario activo: {email} | Modo Operativo: En Vivo / Oportunidades</div>
+            <div class="subtitle">Usuario activo: {email} | Modo Operativo: <span style="color: {mode_color}; font-weight: bold;">{mode}</span></div>
             
             <div class="card">
                 <h3 style="margin-top:0; color:#f0b90b;">Panel de Control y Techo de Capital</h3>
                 <p>Techo actual configurado: <b>{techo} USDT</b></p>
                 <form action="/simular-operacion" method="post">
                     <input type="hidden" name="email" value="{email}">
-                    <button type="submit">⚡ Simular Compra por Oportunidad</button>
+                    <button type="submit">⚡ Ejecutar Operación de Prueba / Simulación</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-top:0; color:#f0b90b;">Configuración de Conexión Real (Opcional)</h3>
+                <p style="font-size: 13px; color: #848e9c;">Si deseas operar con fondos reales, ingresa tus API Keys de Binance y cambia el modo a En Vivo.</p>
+                <form action="/guardar-config" method="post">
+                    <input type="hidden" name="email" value="{email}">
+                    <label style="font-size: 13px; color: #848e9c;">Modo Operativo:</label>
+                    <select name="mode">
+                        <option value="SIMULACIÓN" {"selected" if mode == "SIMULACIÓN" else ""}>SIMULACIÓN (Sin riesgo)</option>
+                        <option value="EN VIVO" {"selected" if mode == "EN VIVO" else ""}>EN VIVO (Binance Real)</option>
+                    </select>
+                    
+                    <label style="font-size: 13px; color: #848e9c;">Binance API Key:</label>
+                    <input type="text" name="api_key" value="{api_key_val}" placeholder="Pega tu API Key">
+
+                    <label style="font-size: 13px; color: #848e9c;">Binance API Secret:</label>
+                    <input type="password" name="api_secret" value="{api_secret_val}" placeholder="Pega tu API Secret">
+
+                    <button type="submit" style="background: #2b313a; color: #f0b90b; border: 1px solid #f0b90b;">Guardar Configuración</button>
                 </form>
             </div>
 
@@ -148,26 +176,39 @@ def panel(email: str):
     </html>
     """
 
+@app.post("/guardar-config")
+def guardar_config(email: str = Form(...), mode: str = Form(...), api_key: str = Form(...), api_secret: str = Form(...)):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE users SET mode = ?, api_key = ?, api_secret = ? WHERE email = ?
+    ''', (mode, api_key, api_secret, email))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url=f"/panel?email={email}", status_code=303)
+
 @app.post("/simular-operacion")
 def simular_operacion(email: str = Form(...)):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute('SELECT techo_capital FROM users WHERE email = ?', (email,))
+    cursor.execute('SELECT techo_capital, mode FROM users WHERE email = ?', (email,))
     row = cursor.fetchone()
     techo = row[0] if row else 100.0
+    mode = row[1] if row else 'SIMULACIÓN'
 
     monto_operacion = round(random.uniform(15.0, min(50.0, techo)), 2)
+    tipo_op = 'COMPRA BAJO PRECIO (REAL)' if mode == 'EN VIVO' else 'COMPRA BAJO PRECIO'
     
     cursor.execute('''
         INSERT INTO operaciones (email, par, tipo, monto, estado)
-        VALUES (?, 'BTC/USDT', 'COMPRA BAJO PRECIO', ?, 'EJECUTADA')
-    ''', (email, monto_operacion))
+        VALUES (?, 'BTC/USDT', ?, ?, 'EJECUTADA')
+    ''', (email, tipo_op, monto_operacion))
     conn.commit()
     conn.close()
 
     # DISPARAR ALERTA A TELEGRAM CON FORMATO LIMPIO
     mensaje_alerta = (
-        "🚨 *¡Oportunidad Detectada y Comprada!*\n"
+        f"🚨 *¡Oportunidad Detectada ({mode})!*\n"
         "Par: `BTC/USDT`\n"
         f"Monto: `{monto_operacion} USDT`\n"
         "Estado: `EJECUTADA EXITOSAMENTE`"
