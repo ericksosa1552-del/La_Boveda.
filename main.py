@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="La Bóveda", version="3.6")
+app = FastAPI(title="La Bóveda", version="3.8")
 
 DB_NAME = "boveda_memory.db"
 
@@ -31,6 +31,13 @@ def init_db():
         )
     ''')
     cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('capital_ceiling', '100.0')")
+    cursor.execute('''
         CREATE TABLE IF NOT EXISTS ai_learning_memory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             pattern_hash TEXT UNIQUE,
@@ -45,7 +52,7 @@ def init_db():
 
 init_db()
 
-# Plantilla HTML con el diseño del Dashboard
+# Plantilla HTML con el diseño original conservado y flechas numéricas nativas
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="es">
@@ -111,6 +118,7 @@ HTML_TEMPLATE = """
             font-weight: bold;
             cursor: pointer;
             transition: background 0.2s;
+            white-space: nowrap;
         }
         .btn-gold:hover { background-color: #f59e0b; }
 
@@ -173,13 +181,13 @@ HTML_TEMPLATE = """
             </div>
         </div>
 
-        <!-- Ajustar Techo de Capital -->
+        <!-- Ajustar Techo de Capital con el diseño original y flechas numéricas -->
         <div class="card">
             <form action="/update-capital" method="post">
                 <label for="capital">Ajustar Techo de Capital (USDT)</label>
                 <div class="row" style="align-items: center; margin-top: 5px;">
                     <div class="col" style="flex: 3;">
-                        <input type="text" id="capital" name="capital" value="100.0">
+                        <input type="number" step="0.1" id="capital" name="capital" value="{{ capital_ceiling }}">
                     </div>
                     <div class="col" style="flex: 1;">
                         <button type="submit" class="btn-gold" style="width: 100%;">Guardar</button>
@@ -228,14 +236,12 @@ def send_telegram_alert(message: str):
 def evaluate_market_with_ai(pattern_hash: str) -> bool:
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Consulta el historial reciente para evaluar rachas de pérdidas
     cursor.execute("SELECT profit_loss FROM operations ORDER BY id DESC LIMIT 5")
     recent_ops = cursor.fetchall()
     conn.close()
     
     if len(recent_ops) >= 3:
         losses_count = sum(1 for op in recent_ops if op[0] < 0)
-        # Si hay 3 o más pérdidas en las últimas 5 operaciones, la IA bloquea el riesgo
         if losses_count >= 3:
             return False
             
@@ -250,6 +256,10 @@ async def home(request: Request):
     row_stats = cursor.fetchone()
     total_ops = row_stats[0] if row_stats[0] is not None else 0
     total_pnl = round(row_stats[1], 2) if row_stats[1] is not None else 0.00
+    
+    cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
+    cap_row = cursor.fetchone()
+    capital_ceiling = cap_row[0] if cap_row else "100.0"
     
     cursor.execute("SELECT symbol, action, amount, status, profit_loss FROM operations ORDER BY id DESC LIMIT 5")
     ops = cursor.fetchall()
@@ -272,11 +282,22 @@ async def home(request: Request):
                 </tr>
             """
             
-    html_output = HTML_TEMPLATE.replace("{{ total_ops }}", str(total_ops)).replace("{{ total_pnl }}", str(total_pnl)).replace("{{ operations_rows }}", rows_html)
+    html_output = (
+        HTML_TEMPLATE
+        .replace("{{ total_ops }}", str(total_ops))
+        .replace("{{ total_pnl }}", str(total_pnl))
+        .replace("{{ capital_ceiling }}", str(capital_ceiling))
+        .replace("{{ operations_rows }}", rows_html)
+    )
     return HTMLResponse(content=html_output)
 
 @app.post("/update-capital")
 async def update_capital(capital: str = Form(...)):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('capital_ceiling', ?)", (capital,))
+    conn.commit()
+    conn.close()
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/run-bot")
@@ -287,7 +308,11 @@ async def run_bot():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
-    amount_sim = round(random.uniform(20.0, 50.0), 2)
+    cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
+    cap_row = cursor.fetchone()
+    max_capital = float(cap_row[0]) if cap_row else 100.0
+    
+    amount_sim = round(random.uniform(10.0, min(50.0, max_capital)), 2)
     
     if should_trade:
         profit_loss = round(random.uniform(-3.50, 6.50), 2)
@@ -320,7 +345,6 @@ async def run_bot():
     conn.commit()
     conn.close()
 
-    # Envío inmediato de la alerta a Telegram
     send_telegram_alert(msg)
 
     return RedirectResponse(url="/", status_code=303)
