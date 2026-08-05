@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-app = FastAPI(title="La Bóveda", version="3.5")
+app = FastAPI(title="La Bóveda", version="3.6")
 
 DB_NAME = "boveda_memory.db"
 
@@ -228,14 +228,17 @@ def send_telegram_alert(message: str):
 def evaluate_market_with_ai(pattern_hash: str) -> bool:
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT success_count, failure_count, weight_adjustment FROM ai_learning_memory WHERE pattern_hash = ?", (pattern_hash,))
-    row = cursor.fetchone()
+    # Consulta el historial reciente para evaluar rachas de pérdidas
+    cursor.execute("SELECT profit_loss FROM operations ORDER BY id DESC LIMIT 5")
+    recent_ops = cursor.fetchall()
     conn.close()
-
-    if row:
-        successes, failures, weight = row
-        if failures > successes and weight < 0:
+    
+    if len(recent_ops) >= 3:
+        losses_count = sum(1 for op in recent_ops if op[0] < 0)
+        # Si hay 3 o más pérdidas en las últimas 5 operaciones, la IA bloquea el riesgo
+        if losses_count >= 3:
             return False
+            
     return True
 
 @app.get("/", response_class=HTMLResponse)
@@ -287,7 +290,6 @@ async def run_bot():
     amount_sim = round(random.uniform(20.0, 50.0), 2)
     
     if should_trade:
-        # Genera aleatoriamente ganancia o pequeña pérdida para simulación realista
         profit_loss = round(random.uniform(-3.50, 6.50), 2)
         action = "COMPRA BAJO PRECIO"
         status = "EJECUTADA EXITOSAMENTE"
@@ -305,10 +307,9 @@ async def run_bot():
         status = "EVITADO POR IA"
         profit_loss = 0.00
         msg = (
-            "🛡️ *¡Riesgo Detectado (SIMULACIÓN)!*\n"
+            "🛡️ *¡Mala Racha Detectada / Riesgo Evitado!*\n"
             "Par: `BTC/USDT`\n"
-            f"Monto: `{amount_sim} USDT`\n"
-            "PnL Estimado: `0.00 USDT`\n"
+            "La IA pausó operaciones debido a pérdidas consecutivas recientes.\n"
             f"Estado: *{status}*"
         )
 
@@ -319,7 +320,7 @@ async def run_bot():
     conn.commit()
     conn.close()
 
-    # Envío inmediato y detallado a Telegram
+    # Envío inmediato de la alerta a Telegram
     send_telegram_alert(msg)
 
     return RedirectResponse(url="/", status_code=303)
