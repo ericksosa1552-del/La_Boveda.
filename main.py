@@ -1,21 +1,21 @@
-import os
 import sqlite3
-import asyncio
-import aiohttp
+import random
+import requests
 from datetime import datetime
-from fastapi import FastAPI, Request, Form, BackgroundTasks
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
-app = FastAPI(title="La Bóveda", version="2.0")
+app = FastAPI(title="La Bóveda", version="3.5")
 
-# Base de datos local SQLite para persistencia y memoria del sistema
 DB_NAME = "boveda_memory.db"
+
+# Tus credenciales directas de Telegram
+TELEGRAM_BOT_TOKEN = "8610300157:AAG86zeR58BF-o42_ZyyJPYneZf3uzmBxes"
+TELEGRAM_CHAT_ID = "8536842251"
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    # Tabla de operaciones (Demo / Real)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS operations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +30,6 @@ def init_db():
             market_pattern_id TEXT
         )
     ''')
-    # Tabla de memoria y aprendizaje continuo de la IA (Patrones y Rachas)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ai_learning_memory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,131 +45,187 @@ def init_db():
 
 init_db()
 
-# Plantilla HTML integrada para mantener un diseño profesional, limpio y fijo en el centro
+# Plantilla HTML con el diseño del Dashboard
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Bóveda - Panel de Control</title>
+    <title>La Bóveda - Dashboard</title>
     <style>
         body {
-            background-color: #0d1117;
-            color: #c9d1d9;
+            background-color: #0b0f19;
+            color: #e6edf3;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
+            padding: 20px;
             display: flex;
             justify-content: center;
-            align-items: center;
-            height: 100vh;
-            overflow: hidden;
+            align-items: flex-start;
+            min-height: 100vh;
         }
-        .modal-box {
-            background-color: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 12px;
+        .dashboard-container {
+            background-color: #111827;
+            border: 1px solid #374151;
+            border-radius: 14px;
             padding: 30px;
-            width: 450px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            width: 650px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
         }
-        h1 { font-size: 22px; color: #58a6ff; margin-top: 0; text-align: center; }
-        .status-badge {
-            background: #238636;
-            color: white;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 12px;
-            display: inline-block;
+        h1 { font-size: 24px; color: #fbbf24; text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #9ca3af; font-size: 13px; margin-bottom: 25px; }
+        
+        .card {
+            background-color: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 15px;
             margin-bottom: 15px;
         }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-size: 14px; margin-bottom: 5px; color: #8b949e; }
-        select, input {
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        
+        label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 5px; font-weight: 600; text-transform: uppercase; }
+        .value-text { font-size: 15px; font-weight: bold; color: white; }
+        .badge-connected { background-color: #059669; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .balance-text { color: #34d399; font-size: 18px; font-weight: bold; }
+        
+        input {
             width: 100%;
             padding: 10px;
-            background: #0d1117;
-            border: 1px solid #30363d;
+            background: #111827;
+            border: 1px solid #4b5563;
             color: white;
             border-radius: 6px;
             box-sizing: border-box;
+            font-size: 14px;
         }
-        button {
-            width: 100%;
-            background-color: #238636;
-            color: white;
+        
+        .btn-gold {
+            background-color: #fbbf24;
+            color: #111827;
             border: none;
-            padding: 12px;
+            padding: 10px 20px;
             border-radius: 6px;
             font-weight: bold;
             cursor: pointer;
             transition: background 0.2s;
         }
-        button:hover { background-color: #2ea043; }
-        .stats { margin-top: 20px; font-size: 13px; border-top: 1px solid #30363d; padding-top: 10px; }
+        .btn-gold:hover { background-color: #f59e0b; }
+
+        .btn-sim {
+            width: 100%;
+            background-color: #10b981;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-align: center;
+        }
+        .btn-sim:hover { background-color: #059669; }
+
+        h3 { font-size: 14px; color: #9ca3af; margin-top: 25px; margin-bottom: 10px; border-bottom: 1px solid #374151; padding-bottom: 5px; }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+        th { text-align: left; color: #9ca3af; padding: 8px; border-bottom: 1px solid #374151; font-size: 11px; text-transform: uppercase; }
+        td { padding: 10px 8px; border-bottom: 1px solid #1f2937; color: #e6edf3; }
+        .pnl-pos { color: #34d399; font-weight: bold; }
+        .pnl-neg { color: #f87171; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div class="modal-box">
-        <h1>La Bóveda 🛡️</h1>
-        <div style="text-align: center;">
-            <span class="status-badge">Sistema Activo & Protegido</span>
-        </div>
+    <div class="dashboard-container">
+        <h1>LA BÓVEDA</h1>
+        <div class="subtitle">Motor de Oportunidades, IA y Gestión de Riesgo</div>
         
-        <form action="/run-bot" method="post">
-            <div class="form-group">
-                <label for="mode">Modo Operativo:</label>
-                <select name="mode" id="mode">
-                    <option value="demo" {% if mode == 'demo' %}selected{% endif %}>Modo Demo (Simulación / Dinero Ficticio)</option>
-                    <option value="live" {% if mode == 'live' %}selected{% endif %}>Modo Real (Live / Binance API)</option>
-                </select>
+        <!-- Estado del Motor -->
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <label>Estado del Motor:</label>
+                    <div class="value-text" style="margin-top: 4px;">Conectado (TESTNET - IA ACTIVA)</div>
+                </div>
+                <div>
+                    <span class="badge-connected">CONECTADO</span>
+                </div>
             </div>
-            
-            <div class="form-group">
-                <label for="strategy">Estado de Inteligencia & IA:</label>
-                <select name="strategy" id="strategy">
-                    <option value="active">Activo: Aprendizaje Continuo y Filtro de Malas Rachas</option>
-                </select>
-            </div>
-
-            <button type="submit">Ejecutar Ciclo de Análisis IA</button>
-        </form>
-
-        <div class="stats">
-            <p><strong>Operaciones Registradas:</strong> {{ total_ops }}</p>
-            <p><strong>Filtro Anti-Malas Rachas:</strong> <span style="color: #3fb950;">Habilitado</span></p>
-            <p style="text-align: center; color: #8b949e; margin-bottom: 0;"><small>Estado del Servidor: En línea (/ping activo)</small></p>
         </div>
+
+        <!-- Balance y Operaciones Activas -->
+        <div class="row">
+            <div class="col card">
+                <label>Balance Disponible (PnL Total)</label>
+                <div class="balance-text">${{ total_pnl }} USDT</div>
+            </div>
+            <div class="col card">
+                <label>Op. Registradas / Activas</label>
+                <div class="value-text" style="font-size: 18px;">{{ total_ops }}</div>
+            </div>
+        </div>
+
+        <!-- Ajustar Techo de Capital -->
+        <div class="card">
+            <form action="/update-capital" method="post">
+                <label for="capital">Ajustar Techo de Capital (USDT)</label>
+                <div class="row" style="align-items: center; margin-top: 5px;">
+                    <div class="col" style="flex: 3;">
+                        <input type="text" id="capital" name="capital" value="100.0">
+                    </div>
+                    <div class="col" style="flex: 1;">
+                        <button type="submit" class="btn-gold" style="width: 100%;">Guardar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Simular Detección de Oferta (IA) -->
+        <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 20px;">
+            <form action="/run-bot" method="post">
+                <button type="submit" class="btn-sim">Simular Compra por Oportunidad (IA)</button>
+            </form>
+        </div>
+
+        <!-- Historial de Operaciones -->
+        <h3>Historial de Operaciones</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Par</th>
+                    <th>Tipo</th>
+                    <th>Monto</th>
+                    <th>Estado / PnL</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ operations_rows }}
+            </tbody>
+        </table>
     </div>
 </body>
 </html>
 """
 
-async def send_telegram_alert(message: str):
-    """Envía notificaciones inteligentes a Telegram solo ante eventos clave."""
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
+def send_telegram_alert(message: str):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload) as response:
-                await response.text()
+        requests.post(url, json=payload, timeout=5)
     except Exception:
         pass
 
 def evaluate_market_with_ai(pattern_hash: str) -> bool:
-    """
-    Motor de decisión de la IA: Consulta la memoria histórica para evaluar 
-    si el patrón actual coincide con una mala racha pasada y bloquearla, 
-    o si favorece una racha ganadora.
-    """
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("SELECT success_count, failure_count, weight_adjustment FROM ai_learning_memory WHERE pattern_hash = ?", (pattern_hash,))
@@ -187,45 +242,84 @@ def evaluate_market_with_ai(pattern_hash: str) -> bool:
 async def home(request: Request):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM operations")
-    total_ops = cursor.fetchone()[0]
+    
+    cursor.execute("SELECT COUNT(*), SUM(profit_loss) FROM operations")
+    row_stats = cursor.fetchone()
+    total_ops = row_stats[0] if row_stats[0] is not None else 0
+    total_pnl = round(row_stats[1], 2) if row_stats[1] is not None else 0.00
+    
+    cursor.execute("SELECT symbol, action, amount, status, profit_loss FROM operations ORDER BY id DESC LIMIT 5")
+    ops = cursor.fetchall()
     conn.close()
     
-    return HTMLResponse(content=HTML_TEMPLATE.replace("{{ total_ops }}", str(total_ops)).replace("{% if mode == 'demo' %}selected{% endif %}", "selected"))
+    rows_html = ""
+    if not ops:
+        rows_html = "<tr><td colspan='4' style='text-align: center; color: #6b7280;'>No hay operaciones registradas aún. Presiona simular.</td></tr>"
+    else:
+        for op in ops:
+            symbol, action, amount, status, pnl = op
+            pnl_class = "pnl-pos" if pnl >= 0 else "pnl-neg"
+            formatted_pnl = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
+            rows_html += f"""
+                <tr>
+                    <td>{symbol}</td>
+                    <td>{action}</td>
+                    <td>{amount:.2f} USDT</td>
+                    <td><span class="{pnl_class}">{status} ({formatted_pnl})</span></td>
+                </tr>
+            """
+            
+    html_output = HTML_TEMPLATE.replace("{{ total_ops }}", str(total_ops)).replace("{{ total_pnl }}", str(total_pnl)).replace("{{ operations_rows }}", rows_html)
+    return HTMLResponse(content=html_output)
 
-@app.get("/ping")
-async def ping():
-    """Endpoint de autodiagnóstico continuo para evitar la suspensión del servidor en la nube."""
-    return {"status": "alive", "timestamp": datetime.utcnow().isoformat()}
+@app.post("/update-capital")
+async def update_capital(capital: str = Form(...)):
+    return RedirectResponse(url="/", status_code=303)
 
 @app.post("/run-bot")
-async def run_bot(background_tasks: BackgroundTasks, mode: str = Form(...)):
-    """Ejecuta el ciclo analítico aplicando la memoria de la IA y el bot de copy-trading."""
+async def run_bot():
     pattern_hash = "pattern_market_low_volatility"
-    
     should_trade = evaluate_market_with_ai(pattern_hash)
     
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     
+    amount_sim = round(random.uniform(20.0, 50.0), 2)
+    
     if should_trade:
-        action = "COMPRA_EJECUTADA"
-        status = "Éxito"
-        profit_loss = 1.25
-        msg = f"🚀 *La Bóveda ({mode.upper()})*:\nOportunidad detectada y validada por la IA.\nAcción: Compra exitosa realizada."
+        # Genera aleatoriamente ganancia o pequeña pérdida para simulación realista
+        profit_loss = round(random.uniform(-3.50, 6.50), 2)
+        action = "COMPRA BAJO PRECIO"
+        status = "EJECUTADA EXITOSAMENTE"
+        
+        pnl_sign_str = f"+{profit_loss:.2f}" if profit_loss >= 0 else f"{profit_loss:.2f}"
+        msg = (
+            "🚨 *¡Oportunidad Detectada (SIMULACIÓN)!*\n"
+            "Par: `BTC/USDT`\n"
+            f"Monto: `{amount_sim} USDT`\n"
+            f"PnL Estimado: `{pnl_sign_str} USDT`\n"
+            f"Estado: *{status}*"
+        )
     else:
-        action = "BLOQUEO_RIESGO"
-        status = "Evitado"
-        profit_loss = 0.0
-        msg = f"🛡️ *La Bóveda ({mode.upper()})*:\nMalas rachas detectadas en este patrón histórico. La IA bloqueó la operación para proteger capital."
+        action = "BLOQUEO RIESGO"
+        status = "EVITADO POR IA"
+        profit_loss = 0.00
+        msg = (
+            "🛡️ *¡Riesgo Detectado (SIMULACIÓN)!*\n"
+            "Par: `BTC/USDT`\n"
+            f"Monto: `{amount_sim} USDT`\n"
+            "PnL Estimado: `0.00 USDT`\n"
+            f"Estado: *{status}*"
+        )
 
     cursor.execute(
         "INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (datetime.utcnow().isoformat(), mode, "BTC/USDT", action, 65000.0, 0.01, status, profit_loss, pattern_hash)
+        (datetime.utcnow().isoformat(), "demo", "BTC/USDT", action, 65000.0, amount_sim, status, profit_loss, pattern_hash)
     )
     conn.commit()
     conn.close()
 
-    background_tasks.add_task(send_telegram_alert, msg)
+    # Envío inmediato y detallado a Telegram
+    send_telegram_alert(msg)
 
     return RedirectResponse(url="/", status_code=303)
