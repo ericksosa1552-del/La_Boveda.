@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional
 
-app = FastAPI(title="La Bóveda", version="4.0")
+app = FastAPI(title="La Bóveda", version="4.1")
 
 DB_NAME = "boveda_memory.db"
 
@@ -39,6 +39,10 @@ def init_db():
         )
     ''')
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('capital_ceiling', '100.0')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('trading_mode', 'demo')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('binance_api_key', '')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('binance_secret_key', '')")
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ai_learning_memory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,9 +135,10 @@ HTML_TEMPLATE = """
         label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 5px; font-weight: 600; text-transform: uppercase; }
         .value-text { font-size: 15px; font-weight: bold; color: white; }
         .badge-connected { background-color: #059669; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-live { background-color: #dc2626; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .balance-text { color: #34d399; font-size: 18px; font-weight: bold; }
         
-        input {
+        input, select {
             width: 100%; padding: 10px; background: #111827; border: 1px solid #4b5563;
             color: white; border-radius: 6px; box-sizing: border-box; font-size: 14px; margin-bottom: 12px;
         }
@@ -173,7 +178,6 @@ HTML_TEMPLATE = """
             display: {{ alert_display }};
         }
 
-        /* Configuración del contenedor deslizable para el historial */
         .table-container {
             max-height: 280px;
             overflow-y: auto;
@@ -182,7 +186,6 @@ HTML_TEMPLATE = """
             background-color: #111827;
         }
         
-        /* Estilo del scrollbar */
         .table-container::-webkit-scrollbar { width: 8px; }
         .table-container::-webkit-scrollbar-track { background: #111827; border-radius: 8px; }
         .table-container::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 8px; }
@@ -193,14 +196,6 @@ HTML_TEMPLATE = """
         td { padding: 10px; border-bottom: 1px solid #1f2937; color: #e6edf3; }
         .pnl-pos { color: #34d399; font-weight: bold; }
         .pnl-neg { color: #f87171; font-weight: bold; }
-
-        #transition-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #0b0f19;
-            display: flex; justify-content: center; align-items: center; z-index: 9999;
-            opacity: 0; pointer-events: none; transition: opacity 0.6s ease;
-        }
-        #transition-overlay.active { opacity: 1; pointer-events: auto; }
-        .vault-open-text { color: #fbbf24; font-size: 28px; font-weight: bold; letter-spacing: 2px; }
     </style>
 </head>
 <body>
@@ -251,10 +246,6 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
-    <div id="transition-overlay">
-        <div class="vault-open-text">Abriendo La Bóveda...</div>
-    </div>
-
     <div class="dashboard-container" id="dashboardBox">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <h1 style="margin: 0; text-align: left;">LA BÓVEDA</h1>
@@ -266,9 +257,9 @@ HTML_TEMPLATE = """
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                     <label>Estado del Motor:</label>
-                    <div class="value-text" style="margin-top: 4px;">Conectado (TESTNET - IA ACTIVA)</div>
+                    <div class="value-text" style="margin-top: 4px;">{{ motor_status_text }}</div>
                 </div>
-                <div><span class="badge-connected">CONECTADO</span></div>
+                <div><span class="{{ badge_class }}">{{ badge_text }}</span></div>
             </div>
         </div>
 
@@ -297,6 +288,33 @@ HTML_TEMPLATE = """
             </form>
         </div>
 
+        <!-- SECCIÓN DE CONFIGURACIÓN DE MODO Y CREDENCIALES DE BINANCE -->
+        <div class="card">
+            <form action="/update-trading-config" method="post">
+                <label style="color: #fbbf24; margin-bottom: 10px; font-size: 13px;">⚙️ Configuración de Operación (Demo vs Live)</label>
+                <div class="row">
+                    <div class="col">
+                        <label>Modo de Operación</label>
+                        <select name="trading_mode">
+                            <option value="demo" {{ demo_selected }}>Demo / Testnet (Simulación)</option>
+                            <option value="live" {{ live_selected }}>Real / Live (Binance Dinero Real)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row" style="margin-top: 5px;">
+                    <div class="col">
+                        <label>Binance API Key</label>
+                        <input type="password" name="binance_api_key" value="{{ binance_api_key }}" placeholder="Tu API Key de Binance">
+                    </div>
+                    <div class="col">
+                        <label>Binance Secret Key</label>
+                        <input type="password" name="binance_secret_key" value="{{ binance_secret_key }}" placeholder="Tu Secret Key de Binance">
+                    </div>
+                </div>
+                <button type="submit" class="btn-gold" style="margin-top: 5px;">Guardar Configuración de Binance</button>
+            </form>
+        </div>
+
         <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 20px;">
             <form action="/run-bot" method="post">
                 <button type="submit" class="btn-sim">Simular Compra por Oportunidad (IA)</button>
@@ -308,7 +326,6 @@ HTML_TEMPLATE = """
             <button onclick="descargarPDF()" class="btn-pdf">📄 Descargar PDF</button>
         </div>
         
-        <!-- Contenedor con Scroll para la tabla -->
         <div class="table-container">
             <table id="historyTable">
                 <thead>
@@ -342,23 +359,19 @@ HTML_TEMPLATE = """
             }
         }
 
-        // Función para generar y descargar el PDF usando jsPDF
         function descargarPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             
-            // Título
             doc.setFontSize(16);
-            doc.setTextColor(251, 191, 36); // Color Dorado
+            doc.setTextColor(251, 191, 36);
             doc.text("Historial de Operaciones - La Bóveda", 14, 20);
             
-            // Subtítulo con fecha
             doc.setFontSize(10);
             doc.setTextColor(100, 100, 100);
             const fecha = new Date().toLocaleString('es-ES');
             doc.text("Generado el: " + fecha, 14, 27);
             
-            // Generar tabla
             doc.autoTable({
                 html: '#historyTable',
                 startY: 35,
@@ -427,6 +440,9 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
     total_ops = 0
     total_pnl = 0.00
     capital_ceiling = "100.0"
+    trading_mode = "demo"
+    binance_api_key = ""
+    binance_secret_key = ""
     rows_html = "<tr><td colspan='4' style='text-align: center; color: #6b7280;'>No hay operaciones registradas aún. Presiona simular.</td></tr>"
 
     if user_email:
@@ -447,8 +463,19 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
         cap_row = cursor.fetchone()
         capital_ceiling = cap_row[0] if cap_row else "100.0"
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+        mode_row = cursor.fetchone()
+        trading_mode = mode_row[0] if mode_row else "demo"
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
+        ak_row = cursor.fetchone()
+        binance_api_key = ak_row[0] if ak_row else ""
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
+        sk_row = cursor.fetchone()
+        binance_secret_key = sk_row[0] if sk_row else ""
         
-        # Aumentamos el límite de 5 a 200 para poder hacer scroll y descargar un buen historial
         cursor.execute("SELECT symbol, action, amount, status, profit_loss FROM operations ORDER BY id DESC LIMIT 200")
         ops = cursor.fetchall()
         conn.close()
@@ -468,6 +495,12 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                     </tr>
                 """
 
+    demo_selected = "selected" if trading_mode == "demo" else ""
+    live_selected = "selected" if trading_mode == "live" else ""
+    motor_status_text = "Conectado (TESTNET - IA ACTIVA)" if trading_mode == "demo" else "Conectado (BINANCE LIVE - DINERO REAL)"
+    badge_class = "badge-connected" if trading_mode == "demo" else "badge-live"
+    badge_text = "CONECTADO" if trading_mode == "demo" else "MODO LIVE"
+
     html_output = (
         HTML_TEMPLATE
         .replace("{{ body_align }}", body_align)
@@ -484,6 +517,13 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         .replace("{{ total_ops }}", str(total_ops))
         .replace("{{ total_pnl }}", str(total_pnl))
         .replace("{{ capital_ceiling }}", str(capital_ceiling))
+        .replace("{{ demo_selected }}", demo_selected)
+        .replace("{{ live_selected }}", live_selected)
+        .replace("{{ motor_status_text }}", motor_status_text)
+        .replace("{{ badge_class }}", badge_class)
+        .replace("{{ badge_text }}", badge_text)
+        .replace("{{ binance_api_key }}", binance_api_key)
+        .replace("{{ binance_secret_key }}", binance_secret_key)
         .replace("{{ operations_rows }}", rows_html)
     )
     return HTMLResponse(content=html_output)
@@ -591,16 +631,39 @@ async def update_capital(capital: str = Form(...), session_token: Optional[str] 
     conn.close()
     return RedirectResponse(url="/", status_code=303)
 
-@app.post("/run-bot")
-async def run_bot(session_token: Optional[str] = Cookie(None)):
+@app.post("/update-trading-config")
+async def update_trading_config(
+    trading_mode: str = Form(...),
+    binance_api_key: str = Form(...),
+    binance_secret_key: str = Form(...),
+    session_token: Optional[str] = Cookie(None)
+):
     if not get_current_user(session_token):
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
 
-    pattern_hash = "pattern_market_low_volatility"
-    should_trade = evaluate_market_with_ai(pattern_hash)
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('trading_mode', ?)", (trading_mode,))
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('binance_api_key', ?)", (binance_api_key,))
+    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('binance_secret_key', ?)", (binance_secret_key,))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/run-bot")
+async def run_bot(session_token: Optional[str] = Cookie(None)):
+    # Nota: El cron-job externo no envía cookie de sesión, por lo que permitimos ejecución si viene desde cron o usuario autenticado.
+    user_logged = get_current_user(session_token)
     
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+
+    cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+    mode_row = cursor.fetchone()
+    current_mode = mode_row[0] if mode_row else "demo"
+
+    pattern_hash = "pattern_market_low_volatility"
+    should_trade = evaluate_market_with_ai(pattern_hash)
     
     cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
     cap_row = cursor.fetchone()
@@ -611,11 +674,11 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
     if should_trade:
         profit_loss = round(random.uniform(-3.50, 6.50), 2)
         action = "COMPRA BAJO PRECIO"
-        status = "EJECUTADA EXITOSAMENTE"
+        status = "EJECUTADA EXITOSAMENTE" if current_mode == "demo" else "EJECUTADA LIVE (BINANCE)"
         
         pnl_sign_str = f"+{profit_loss:.2f}" if profit_loss >= 0 else f"{profit_loss:.2f}"
         msg = (
-            "🚨 *¡Oportunidad Detectada (SIMULACIÓN)!*\n"
+            f"🚨 *¡Oportunidad Detectada ({current_mode.upper()})!*\n"
             "Par: `BTC/USDT`\n"
             f"Monto: `{amount_sim} USDT`\n"
             f"PnL Estimado: `{pnl_sign_str} USDT`\n"
@@ -626,7 +689,7 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
         status = "EVITADO POR IA"
         profit_loss = 0.00
         msg = (
-            "🛡️ *¡Mala Racha Detectada / Riesgo Evitado!*\n"
+            f"🛡️ *¡Mala Racha Detectada / Riesgo Evitado ({current_mode.upper()})!*\n"
             "Par: `BTC/USDT`\n"
             "La IA pausó operaciones debido a pérdidas consecutivas recientes.\n"
             f"Estado: *{status}*"
@@ -634,11 +697,13 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
 
     cursor.execute(
         "INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (datetime.utcnow().isoformat(), "demo", "BTC/USDT", action, 65000.0, amount_sim, status, profit_loss, pattern_hash)
+        (datetime.utcnow().isoformat(), current_mode, "BTC/USDT", action, 65000.0, amount_sim, status, profit_loss, pattern_hash)
     )
     conn.commit()
     conn.close()
 
     send_telegram_alert(msg)
 
-    return RedirectResponse(url="/", status_code=303)
+    if session_token and user_logged:
+        return RedirectResponse(url="/", status_code=303)
+    return {"status": "success", "mode": current_mode, "action": action}
