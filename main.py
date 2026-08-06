@@ -650,9 +650,8 @@ async def update_trading_config(
     conn.close()
     return RedirectResponse(url="/", status_code=303)
 
-@app.post("/run-bot")
+@app.api_route("/run-bot", methods=["GET", "POST"])
 async def run_bot(session_token: Optional[str] = Cookie(None)):
-    # Nota: El cron-job externo no envía cookie de sesión, por lo que permitimos ejecución si viene desde cron o usuario autenticado.
     user_logged = get_current_user(session_token)
     
     conn = sqlite3.connect(DB_NAME)
