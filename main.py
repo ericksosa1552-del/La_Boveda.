@@ -25,7 +25,6 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Nota: En PostgreSQL usamos SERIAL en lugar de INTEGER AUTOINCREMENT
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS operations (
             id SERIAL PRIMARY KEY,
@@ -93,7 +92,6 @@ HTML_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>La Bóveda</title>
-    <!-- Librerías para generar PDF desde el navegador -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     
@@ -735,4 +733,9 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
 
     if session_token and user_logged:
         return RedirectResponse(url="/", status_code=303)
-    return {"status": "success", "mode": current_mode, "action": action}
+    return {"status": "success", "mode": current_mode}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
