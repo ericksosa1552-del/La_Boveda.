@@ -1,26 +1,34 @@
-import sqlite3
 import random
 import requests
 import hashlib
+import os
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="4.1")
+app = FastAPI(title="La Bóveda", version="4.2")
 
-DB_NAME = "boveda_memory.db"
+# URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
 
 # Tus credenciales directas de Telegram
 TELEGRAM_BOT_TOKEN = "8610300157:AAG86zeR58BF-o42_ZyyJPYneZf3uzmBxes"
 TELEGRAM_CHAT_ID = "8536842251"
 
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
+    
+    # Nota: En PostgreSQL usamos SERIAL en lugar de INTEGER AUTOINCREMENT
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS operations (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             timestamp TEXT,
             mode TEXT,
             symbol TEXT,
@@ -38,14 +46,14 @@ def init_db():
             value TEXT
         )
     ''')
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('capital_ceiling', '100.0')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('trading_mode', 'demo')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('binance_api_key', '')")
-    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('binance_secret_key', '')")
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', '100.0') ON CONFLICT (key) DO NOTHING")
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', 'demo') ON CONFLICT (key) DO NOTHING")
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', '') ON CONFLICT (key) DO NOTHING")
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', '') ON CONFLICT (key) DO NOTHING")
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ai_learning_memory (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             pattern_hash TEXT UNIQUE,
             success_count INTEGER,
             failure_count INTEGER,
@@ -55,7 +63,7 @@ def init_db():
     ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             email TEXT UNIQUE,
             password_hash TEXT,
             failed_attempts INTEGER DEFAULT 0,
@@ -70,6 +78,7 @@ def init_db():
         )
     ''')
     conn.commit()
+    cursor.close()
     conn.close()
 
 init_db()
@@ -288,7 +297,6 @@ HTML_TEMPLATE = """
             </form>
         </div>
 
-        <!-- SECCIÓN DE CONFIGURACIÓN DE MODO Y CREDENCIALES DE BINANCE -->
         <div class="card">
             <form action="/update-trading-config" method="post">
                 <label style="color: #fbbf24; margin-bottom: 10px; font-size: 13px;">⚙️ Configuración de Operación (Demo vs Live)</label>
@@ -398,14 +406,15 @@ def send_telegram_alert(message: str):
         pass
 
 def evaluate_market_with_ai(pattern_hash: str) -> bool:
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT profit_loss FROM operations ORDER BY id DESC LIMIT 5")
     recent_ops = cursor.fetchall()
+    cursor.close()
     conn.close()
     
     if len(recent_ops) >= 3:
-        losses_count = sum(1 for op in recent_ops if op[0] < 0)
+        losses_count = sum(1 for op in recent_ops if op['profit_loss'] < 0)
         if losses_count >= 3:
             return False
             
@@ -414,12 +423,13 @@ def evaluate_market_with_ai(pattern_hash: str) -> bool:
 def get_current_user(session_token: Optional[str]) -> Optional[str]:
     if not session_token:
         return None
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT email FROM sessions WHERE session_token = ?", (session_token,))
+    cursor.execute("SELECT email FROM sessions WHERE session_token = %s", (session_token,))
     row = cursor.fetchone()
+    cursor.close()
     conn.close()
-    return row[0] if row else None
+    return row['email'] if row else None
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, session_token: Optional[str] = Cookie(None), msg: str = "", active_tab: str = "login"):
@@ -452,38 +462,43 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         dashboard_display = "block"
         alert_display = "none"
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
         
         cursor.execute("SELECT COUNT(*), SUM(profit_loss) FROM operations")
         row_stats = cursor.fetchone()
-        total_ops = row_stats[0] if row_stats[0] is not None else 0
-        total_pnl = round(row_stats[1], 2) if row_stats[1] is not None else 0.00
+        total_ops = row_stats['count'] if row_stats and row_stats['count'] is not None else 0
+        total_pnl = round(row_stats['sum'], 2) if row_stats and row_stats['sum'] is not None else 0.00
         
         cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
         cap_row = cursor.fetchone()
-        capital_ceiling = cap_row[0] if cap_row else "100.0"
+        capital_ceiling = cap_row['value'] if cap_row else "100.0"
 
         cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
         mode_row = cursor.fetchone()
-        trading_mode = mode_row[0] if mode_row else "demo"
+        trading_mode = mode_row['value'] if mode_row else "demo"
 
         cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
         ak_row = cursor.fetchone()
-        binance_api_key = ak_row[0] if ak_row else ""
+        binance_api_key = ak_row['value'] if ak_row else ""
 
         cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
         sk_row = cursor.fetchone()
-        binance_secret_key = sk_row[0] if sk_row else ""
+        binance_secret_key = sk_row['value'] if sk_row else ""
         
         cursor.execute("SELECT symbol, action, amount, status, profit_loss FROM operations ORDER BY id DESC LIMIT 200")
         ops = cursor.fetchall()
+        cursor.close()
         conn.close()
         
         if ops:
             rows_html = ""
             for op in ops:
-                symbol, action, amount, status, pnl = op
+                symbol = op['symbol']
+                action = op['action']
+                amount = op['amount']
+                status = op['status']
+                pnl = op['profit_loss']
                 pnl_class = "pnl-pos" if pnl >= 0 else "pnl-neg"
                 formatted_pnl = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
                 rows_html += f"""
@@ -530,40 +545,47 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
 
 @app.post("/login")
 async def login(email: str = Form(...), password: str = Form(...)):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT password_hash, failed_attempts, is_blocked FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT password_hash, failed_attempts, is_blocked FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
 
     if not user:
+        cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=Correo%20o%20contraseña%20incorrectos", status_code=303)
 
-    pwd_hash, failed_attempts, is_blocked = user
+    pwd_hash = user['password_hash']
+    failed_attempts = user['failed_attempts']
+    is_blocked = user['is_blocked']
 
     if is_blocked:
+        cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=Cuenta%20bloqueada%20por%20intentos.%20Renueve%20su%20contraseña.", status_code=303)
 
     if pwd_hash != hash_password(password):
         failed_attempts += 1
         if failed_attempts >= 5:
-            cursor.execute("UPDATE users SET failed_attempts = ?, is_blocked = 1 WHERE email = ?", (failed_attempts, email))
+            cursor.execute("UPDATE users SET failed_attempts = %s, is_blocked = 1 WHERE email = %s", (failed_attempts, email))
             conn.commit()
+            cursor.close()
             conn.close()
             return RedirectResponse(url="/?msg=Superó%20los%205%20intentos.%20Cuenta%20bloqueada,%20renueve%20contraseña.", status_code=303)
         else:
-            cursor.execute("UPDATE users SET failed_attempts = ? WHERE email = ?", (failed_attempts, email))
+            cursor.execute("UPDATE users SET failed_attempts = %s WHERE email = %s", (failed_attempts, email))
             conn.commit()
+            cursor.close()
             conn.close()
             remaining = 5 - failed_attempts
             return RedirectResponse(url=f"/?msg=Contraseña%20incorrecta.%20Intentos%20restantes:%20{remaining}", status_code=303)
 
-    cursor.execute("UPDATE users SET failed_attempts = 0 WHERE email = ?", (email,))
+    cursor.execute("UPDATE users SET failed_attempts = 0 WHERE email = %s", (email,))
     session_token = hashlib.sha256(f"{email}{datetime.utcnow()}".encode()).hexdigest()
-    cursor.execute("INSERT OR REPLACE INTO sessions (session_token, email, created_at) VALUES (?, ?, ?)", 
+    cursor.execute("INSERT INTO sessions (session_token, email, created_at) VALUES (%s, %s, %s) ON CONFLICT (session_token) DO UPDATE SET email = EXCLUDED.email, created_at = EXCLUDED.created_at", 
                    (session_token, email, datetime.utcnow().isoformat()))
     conn.commit()
+    cursor.close()
     conn.close()
 
     response = RedirectResponse(url="/", status_code=303)
@@ -575,33 +597,37 @@ async def register(email: str = Form(...), password: str = Form(...), confirm_pa
     if password != confirm_password:
         return RedirectResponse(url="/?msg=Las%20contraseñas%20no%20coinciden&active_tab=register", status_code=303)
 
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
     if cursor.fetchone():
+        cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=El%20correo%20ya%20está%20registrado&active_tab=register", status_code=303)
 
-    cursor.execute("INSERT INTO users (email, password_hash, failed_attempts, is_blocked) VALUES (?, ?, 0, 0)", 
+    cursor.execute("INSERT INTO users (email, password_hash, failed_attempts, is_blocked) VALUES (%s, %s, 0, 0)", 
                    (email, hash_password(password)))
     conn.commit()
+    cursor.close()
     conn.close()
 
     return RedirectResponse(url="/?msg=Cuenta%20creada%20exitosamente.%20Inicie%20sesión.", status_code=303)
 
 @app.post("/recovery")
 async def recovery(email: str = Form(...), new_password: str = Form(...)):
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+    cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
     if not user:
+        cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=El%20correo%20no%20existe%20en%20el%20sistema&active_tab=recovery", status_code=303)
 
-    cursor.execute("UPDATE users SET password_hash = ?, failed_attempts = 0, is_blocked = 0 WHERE email = ?", 
+    cursor.execute("UPDATE users SET password_hash = %s, failed_attempts = 0, is_blocked = 0 WHERE email = %s", 
                    (hash_password(new_password), email))
     conn.commit()
+    cursor.close()
     conn.close()
 
     return RedirectResponse(url="/?msg=Contraseña%20restablecida%20con%20éxito.%20Ya%20puede%20ingresar.", status_code=303)
@@ -609,10 +635,11 @@ async def recovery(email: str = Form(...), new_password: str = Form(...)):
 @app.get("/logout")
 async def logout(session_token: Optional[str] = Cookie(None)):
     if session_token:
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM sessions WHERE session_token = ?", (session_token,))
+        cursor.execute("DELETE FROM sessions WHERE session_token = %s", (session_token,))
         conn.commit()
+        cursor.close()
         conn.close()
     
     response = RedirectResponse(url="/", status_code=303)
@@ -624,10 +651,11 @@ async def update_capital(capital: str = Form(...), session_token: Optional[str] 
     if not get_current_user(session_token):
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
 
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('capital_ceiling', ?)", (capital,))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (capital,))
     conn.commit()
+    cursor.close()
     conn.close()
     return RedirectResponse(url="/", status_code=303)
 
@@ -641,12 +669,13 @@ async def update_trading_config(
     if not get_current_user(session_token):
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
 
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('trading_mode', ?)", (trading_mode,))
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('binance_api_key', ?)", (binance_api_key,))
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('binance_secret_key', ?)", (binance_secret_key,))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (trading_mode,))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_api_key,))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_secret_key,))
     conn.commit()
+    cursor.close()
     conn.close()
     return RedirectResponse(url="/", status_code=303)
 
@@ -654,19 +683,19 @@ async def update_trading_config(
 async def run_bot(session_token: Optional[str] = Cookie(None)):
     user_logged = get_current_user(session_token)
     
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
     mode_row = cursor.fetchone()
-    current_mode = mode_row[0] if mode_row else "demo"
+    current_mode = mode_row['value'] if mode_row else "demo"
 
     pattern_hash = "pattern_market_low_volatility"
     should_trade = evaluate_market_with_ai(pattern_hash)
     
     cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
     cap_row = cursor.fetchone()
-    max_capital = float(cap_row[0]) if cap_row else 100.0
+    max_capital = float(cap_row['value']) if cap_row else 100.0
     
     amount_sim = round(random.uniform(10.0, min(50.0, max_capital)), 2)
     
@@ -695,10 +724,11 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
         )
 
     cursor.execute(
-        "INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
         (datetime.utcnow().isoformat(), current_mode, "BTC/USDT", action, 65000.0, amount_sim, status, profit_loss, pattern_hash)
     )
     conn.commit()
+    cursor.close()
     conn.close()
 
     send_telegram_alert(msg)
