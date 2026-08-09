@@ -88,30 +88,40 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool:
-    """Realiza un handshake real con Binance (Testnet o Live) para validar llaves."""
+    """Valida credenciales. Modo demo es permisivo, Modo live exige handshake real."""
     if not api_key or not secret_key:
         return False
     
-    base_url = "https://testnet.binance.vision" if mode == "demo" else "https://api.binance.com"
+    # 1. Validación rápida para Demo (Evita consultas externas que Render bloquea)
+    if mode == "demo":
+        return len(api_key) > 20 and len(secret_key) > 20
+
+    # 2. Validación estricta para Live (Handshake con Binance Real)
+    base_url = "https://api.binance.com"
     endpoint = "/api/v3/account"
+    
+    # Sincronización de tiempo precisa
     timestamp = int(time.time() * 1000)
-    query_string = f"timestamp={timestamp}"
-    
-    signature = hmac.new(
-        secret_key.encode('utf-8'),
-        query_string.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()
-    
-    url = f"{base_url}{endpoint}?{query_string}&signature={signature}"
-    headers = {"X-MBX-APIKEY": api_key}
+    params = f"timestamp={timestamp}"
     
     try:
-        response = requests.get(url, headers=headers, timeout=5)
+        signature = hmac.new(
+            secret_key.encode('utf-8'),
+            params.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        url = f"{base_url}{endpoint}?{params}&signature={signature}"
+        headers = {"X-MBX-APIKEY": api_key}
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        
+        # El código 200 confirma que las llaves son correctas y tienen permisos
         return response.status_code == 200
-    except Exception:
+    except Exception as e:
+        print(f"Error en validación Live: {e}")
         return False
-
+        
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="es">
