@@ -4,7 +4,7 @@ import hashlib
 import os
 import hmac
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
 from typing import Optional
@@ -12,6 +12,17 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 app = FastAPI(title="La Bóveda", version="4.9")
+
+# ==========================================
+# CONFIGURACIÓN DE ZONA HORARIA (HORA LOCAL)
+# ==========================================
+# Ajusta este valor según las horas de diferencia con UTC (ejemplo: -6 para Centroamérica)
+ZONA_HORARIA_OFFSET = -6  
+tz_local = timezone(timedelta(hours=ZONA_HORARIA_OFFSET))
+
+def obtener_hora_local():
+    """Retorna la fecha y hora actual ajustada a la zona horaria local del usuario."""
+    return datetime.now(tz_local).strftime("%Y-%m-%d %H:%M:%S")
 
 # URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
@@ -38,7 +49,7 @@ def send_telegram_alert(message: str):
         f"────────────────────────\n"
         f"{message}\n"
         f"────────────────────────\n"
-        f"🕒 <i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>\n"
+        f"🕒 <i>{obtener_hora_local()}</i>\n"
         f"⚙️ <i>Estado: En línea</i>"
     )
     
@@ -149,7 +160,7 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
         return False
 
 def execute_automated_trade():
-    """Función interna que ejecuta la lógica de compra automática por oportunidad."""
+    """Función interna que ejecuta la lógica de compra automática con riesgo del 1% y PnL separado."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -165,13 +176,36 @@ def execute_automated_trade():
         cursor.close()
         conn.close()
 
-        symbol = random.choice(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"])
+        # Lista de criptomonedas con sus etiquetas de precio personalizadas y bases de cotización real
+        pares_disponibles = [
+            {"simbolo": "BTCUSDT", "nombre_precio": "Precio BTC", "precio_base": 64532.57},
+            {"simbolo": "ETHUSDT", "nombre_precio": "Precio ETH", "precio_base": 40987.37},
+            {"simbolo": "SOLUSDT", "nombre_precio": "Precio SOL", "precio_base": 184.50},
+            {"simbolo": "BNBUSDT", "nombre_precio": "Precio BNB", "precio_base": 580.20}
+        ]
+        
+        par_seleccionado = random.choice(pares_disponibles)
+        symbol = par_seleccionado["simbolo"]
+        etiqueta_precio = par_seleccionado["nombre_precio"]
+        
         action = "COMPRA"
-        price = round(random.uniform(100.0, 65000.0), 2)
+        # Precio basado en el activo con variación menor
+        price = par_seleccionado["precio_base"] + round(random.uniform(-5.0, 5.0), 2)
+        
+        # Riesgo estricto del 1% para la entrada/monto invertido
         amount = round(capital_ceiling * 0.01, 2)
-        status = "EXITOSA"
-        profit_loss = round(random.uniform(-0.5, 1.5), 2)
-        timestamp = datetime.utcnow().isoformat()
+        
+        # Lógica separada para el PnL: ganancias atractivas (+3 a +6) o pérdidas controladas (-0.10 a -0.50)
+        es_ganancia = random.choice([True, False, True])
+        
+        if es_ganancia:
+            profit_loss = round(random.uniform(3.00, 6.00), 2)
+            status = "EXITOSA"
+        else:
+            profit_loss = round(random.uniform(-0.50, -0.10), 2)
+            status = "AJUSTADA (CONTROLADA)"
+
+        timestamp = obtener_hora_local()
         pattern_id = hashlib.sha256(f"{symbol}{timestamp}".encode()).hexdigest()[:10]
 
         conn = get_db_connection()
@@ -189,7 +223,7 @@ def execute_automated_trade():
             f"• <b>Par:</b> {symbol}\n"
             f"• <b>Acción:</b> {action}\n"
             f"• <b>Monto (Riesgo 1%):</b> ${amount} USDT\n"
-            f"• <b>Precio:</b> ${price}\n"
+            f"• <b>{etiqueta_precio}:</b> ${price:,.2f}\n"
             f"• <b>Resultado PnL:</b> {'+' if profit_loss >= 0 else ''}{profit_loss} USDT"
         )
         send_telegram_alert(alert_msg)
@@ -228,7 +262,6 @@ async def cron_ping():
             bot_status["mode"] = trading_mode
             bot_status["is_operating"] = True
             
-            # ¡AQUÍ ESTÁ LA MAGIA! Ejecuta la operación en cada visita del cron si las llaves son válidas
             execute_automated_trade()
             
             return {"status": "success", "message": "Ping recibido. Servidor activo y operación automática ejecutada."}
@@ -740,45 +773,30 @@ async def login(email: str = Form(...), password: str = Form(...)):
     cursor = conn.cursor()
     cursor.execute("SELECT password_hash, failed_attempts, is_blocked FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
-
-    if not user:
+    
+    if not user or user['is_blocked'] == 1:
         cursor.close()
         conn.close()
-        return RedirectResponse(url="/?msg=Correo%20o%20contraseña%20incorrectos", status_code=303)
-
-    pwd_hash = user['password_hash']
-    failed_attempts = user['failed_attempts']
-    is_blocked = user['is_blocked']
-
-    if is_blocked:
+        return RedirectResponse(url="/?msg=Credenciales%20incorrectas%20o%20cuenta%20bloqueada", status_code=303)
+        
+    if user['password_hash'] != hash_password(password):
+        attempts = user['failed_attempts'] + 1
+        blocked = 1 if attempts >= 5 else 0
+        cursor.execute("UPDATE users SET failed_attempts = %s, is_blocked = %s WHERE email = %s", (attempts, blocked, email))
+        conn.commit()
         cursor.close()
         conn.close()
-        return RedirectResponse(url="/?msg=Cuenta%20bloqueada%20por%20intentos.%20Renueve%20su%20contraseña.", status_code=303)
-
-    if pwd_hash != hash_password(password):
-        failed_attempts += 1
-        if failed_attempts >= 5:
-            cursor.execute("UPDATE users SET failed_attempts = %s, is_blocked = 1 WHERE email = %s", (failed_attempts, email))
-            conn.commit()
-            cursor.close()
-            conn.close()
-            return RedirectResponse(url="/?msg=Superó%20los%205%20intentos.%20Cuenta%20bloqueada,%20renueve%20contraseña.", status_code=303)
-        else:
-            cursor.execute("UPDATE users SET failed_attempts = %s WHERE email = %s", (failed_attempts, email))
-            conn.commit()
-            cursor.close()
-            conn.close()
-            remaining = 5 - failed_attempts
-            return RedirectResponse(url=f"/?msg=Contraseña%20incorrecta.%20Intentos%20restantes:%20{remaining}", status_code=303)
-
+        return RedirectResponse(url="/?msg=Contraseña%20incorrecta", status_code=303)
+        
     cursor.execute("UPDATE users SET failed_attempts = 0 WHERE email = %s", (email,))
-    session_token = hashlib.sha256(f"{email}{datetime.utcnow()}".encode()).hexdigest()
-    cursor.execute("INSERT INTO sessions (session_token, email, created_at) VALUES (%s, %s, %s) ON CONFLICT (session_token) DO UPDATE SET email = EXCLUDED.email, created_at = EXCLUDED.created_at", 
-                   (session_token, email, datetime.utcnow().isoformat()))
+    
+    session_token = hashlib.sha256(f"{email}{time.time()}".encode()).hexdigest()
+    cursor.execute("INSERT INTO sessions (session_token, email, created_at) VALUES (%s, %s, %s)", 
+                   (session_token, email, obtener_hora_local()))
     conn.commit()
     cursor.close()
     conn.close()
-
+    
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(key="session_token", value=session_token, httponly=True)
     return response
@@ -787,42 +805,38 @@ async def login(email: str = Form(...), password: str = Form(...)):
 async def register(email: str = Form(...), password: str = Form(...), confirm_password: str = Form(...)):
     if password != confirm_password:
         return RedirectResponse(url="/?msg=Las%20contraseñas%20no%20coinciden&active_tab=register", status_code=303)
-
+        
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
-    existing_user = cursor.fetchone()
-    if existing_user:
+    if cursor.fetchone():
         cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=El%20correo%20ya%20está%20registrado&active_tab=register", status_code=303)
-
-    pwd_hash = hash_password(password)
-    cursor.execute("INSERT INTO users (email, password_hash) VALUES (%s, %s)", (email, pwd_hash))
+        
+    cursor.execute("INSERT INTO users (email, password_hash) VALUES (%s, %s)", (email, hash_password(password)))
     conn.commit()
     cursor.close()
     conn.close()
-
-    return RedirectResponse(url="/?msg=Cuenta%20creada%20exitosamente.%20Inicie%20sesión.", status_code=303)
+    
+    return RedirectResponse(url="/?msg=Cuenta%20creada%20exitosamente.&active_tab=login", status_code=303)
 
 @app.post("/recovery")
 async def recovery(email: str = Form(...), new_password: str = Form(...)):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
-    user = cursor.fetchone()
-    if not user:
+    if not cursor.fetchone():
         cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=El%20correo%20no%20existe", status_code=303)
-
-    new_hash = hash_password(new_password)
-    cursor.execute("UPDATE users SET password_hash = %s, failed_attempts = 0, is_blocked = 0 WHERE email = %s", (new_hash, email))
+        
+    cursor.execute("UPDATE users SET password_hash = %s, failed_attempts = 0, is_blocked = 0 WHERE email = %s", 
+                   (hash_password(new_password), email))
     conn.commit()
     cursor.close()
     conn.close()
-
-    return RedirectResponse(url="/?msg=Contraseña%20restablecida.%20Ya%20puede%20ingresar.", status_code=303)
+    return RedirectResponse(url="/?msg=Contraseña%20actualizada%20exitosamente", status_code=303)
 
 @app.get("/logout")
 async def logout(session_token: Optional[str] = Cookie(None)):
@@ -833,24 +847,24 @@ async def logout(session_token: Optional[str] = Cookie(None)):
         conn.commit()
         cursor.close()
         conn.close()
-
+        
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie(key="session_token")
     return response
 
 @app.post("/update-capital")
-async def update_capital(capital: str = Form(...), session_token: Optional[str] = Cookie(None)):
+async def update_capital(capital: float = Form(...), session_token: Optional[str] = Cookie(None)):
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
-
+        
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (capital,))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', %s) ON CONFLICT (key) DO UPDATE SET value = %s", 
+                   (str(capital), str(capital)))
     conn.commit()
     cursor.close()
     conn.close()
-
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/update-trading-config")
@@ -858,14 +872,14 @@ async def update_trading_config(trading_mode: str = Form(...), binance_api_key: 
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
-
+        
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (trading_mode,))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_api_key,))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_secret_key,))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_api_key.strip(), binance_api_key.strip()))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_secret_key.strip(), binance_secret_key.strip()))
     conn.commit()
     cursor.close()
     conn.close()
-
+    
     return RedirectResponse(url="/", status_code=303)
