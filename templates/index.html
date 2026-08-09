@@ -3,202 +3,336 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>La Bóveda - Panel de Control</title>
-    <!-- Tailwind CSS v3 Estable CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-900 text-white font-sans antialiased min-h-screen flex flex-col items-center justify-center p-4">
-
-    <div class="w-full max-w-md bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700">
+    <title>La Bóveda</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #e6edf3;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: {{ body_align }};
+            min-height: 100vh;
+        }
         
-        <!-- Encabezado -->
-        <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold tracking-wider text-blue-400">LA BÓVEDA</h1>
-            <p class="text-xs text-gray-400 mt-1">Panel de Control y Gestión de Riesgo</p>
+        .auth-container, .dashboard-container {
+            background-color: #111827;
+            border: 1px solid #374151;
+            border-radius: 14px;
+            padding: 30px;
+            width: 400px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+            position: {{ auth_position }};
+        }
+        .dashboard-container {
+            width: 650px;
+            display: {{ dashboard_display }};
+            position: relative;
+        }
+        .auth-container {
+            display: {{ auth_display }};
+        }
+
+        h1 { font-size: 24px; color: #fbbf24; text-align: center; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #9ca3af; font-size: 13px; margin-bottom: 25px; }
+        
+        .tabs { display: flex; margin-bottom: 20px; border-bottom: 1px solid #374151; }
+        .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; color: #9ca3af; font-weight: 600; font-size: 13px; }
+        .tab.active { color: #fbbf24; border-bottom: 2px solid #fbbf24; }
+        .form-section { display: none; }
+        .form-section.active { display: block; }
+
+        .card { background-color: #1f2937; border: 1px solid #374151; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+        .row { display: flex; gap: 15px; }
+        .col { flex: 1; }
+        
+        label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 5px; font-weight: 600; text-transform: uppercase; }
+        .value-text { font-size: 15px; font-weight: bold; color: white; }
+        .badge-connected { background-color: #059669; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-live { background-color: #dc2626; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-error { background-color: #b91c1c; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .balance-text { color: #34d399; font-size: 18px; font-weight: bold; }
+        
+        input, select {
+            width: 100%; padding: 10px; background: #111827; border: 1px solid #4b5563;
+            color: white; border-radius: 6px; box-sizing: border-box; font-size: 14px; margin-bottom: 12px;
+        }
+
+        .password-container { position: relative; }
+        .password-container input { padding-right: 40px; }
+        .toggle-password {
+            position: absolute; right: 12px; top: 10px; background: none;
+            border: none; cursor: pointer; font-size: 16px; color: #9ca3af;
+        }
+        .toggle-password:hover { color: white; }
+        
+        .btn-gold {
+            background-color: #fbbf24; color: #111827; border: none; padding: 10px 20px;
+            border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s;
+            width: 100%; font-size: 14px;
+        }
+        .btn-gold:hover { background-color: #f59e0b; }
+
+        .btn-sim {
+            width: 100%; background-color: #10b981; color: white; border: none; padding: 14px;
+            border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer;
+            transition: background 0.2s; text-align: center;
+        }
+        .btn-sim:hover { background-color: #059669; }
+
+        .btn-logout {
+            background-color: #ef4444; color: white; border: none; padding: 6px 12px;
+            border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; text-decoration: none;
+        }
+        .btn-logout:hover { background-color: #dc2626; }
+
+        .btn-pdf {
+            background-color: #3b82f6; color: white; border: none; padding: 6px 12px;
+            border-radius: 6px; font-weight: bold; font-size: 12px; cursor: pointer; transition: background 0.2s;
+        }
+        .btn-pdf:hover { background-color: #2563eb; }
+
+        .link-text { text-align: center; font-size: 12px; color: #9ca3af; margin-top: 15px; cursor: pointer; }
+        .link-text span { color: #fbbf24; text-decoration: underline; }
+
+        .alert-msg {
+            background-color: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5;
+            padding: 10px; border-radius: 6px; font-size: 13px; text-align: center; margin-bottom: 15px;
+            display: {{ alert_display }};
+        }
+
+        .table-container {
+            max-height: 280px; overflow-y: auto; border: 1px solid #374151;
+            border-radius: 8px; background-color: #111827;
+        }
+        
+        .table-container::-webkit-scrollbar { width: 8px; }
+        .table-container::-webkit-scrollbar-track { background: #111827; border-radius: 8px; }
+        .table-container::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 8px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0; }
+        th { text-align: left; color: #9ca3af; padding: 10px; border-bottom: 1px solid #374151; font-size: 11px; text-transform: uppercase; position: sticky; top: 0; background-color: #1f2937; z-index: 1; }
+        td { padding: 10px; border-bottom: 1px solid #1f2937; color: #e6edf3; }
+        .pnl-pos { color: #34d399; font-weight: bold; }
+        .pnl-neg { color: #f87171; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="auth-container" id="authBox">
+        <h1>LA BÓVEDA</h1>
+        <div class="subtitle">Acceso Seguro al Sistema</div>
+        
+        <div class="tabs">
+            <div class="tab {{ login_tab_active }}" onclick="switchTab('login')">Iniciar Sesión</div>
+            <div class="tab {{ register_tab_active }}" onclick="switchTab('register')">Registrarse</div>
         </div>
 
-        <!-- Sección de Estado -->
-        <div class="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-sm text-gray-400">Estado:</span>
-                <span id="estadoConexion" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-900 text-yellow-300">Esperando...</span>
-            </div>
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-sm text-gray-400">Balance:</span>
-                <span id="balanceTotal" class="text-lg font-bold text-green-400">0.00 USDT</span>
-            </div>
-        </div>
+        <div class="alert-msg">{{ alert_message }}</div>
 
-        <!-- Métricas -->
-        <div class="grid grid-cols-2 gap-3 mb-6">
-            <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
-                <span class="text-gray-400 text-xs">Techo Actual</span>
-                <p id="displayTecho" class="text-white font-bold text-base mt-1">500.00 USDT</p>
-            </div>
-            <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
-                <span class="text-gray-400 text-xs">Op. Activas</span>
-                <p id="displayOperaciones" class="text-white font-bold text-base mt-1">0</p>
-            </div>
-        </div>
-
-        <!-- Formulario de Techo -->
-        <div class="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-300 mb-1">Ajustar Capital Operativo</h3>
-            <div class="flex space-x-2">
-                <input type="number" id="inputTecho" max="500" min="1" placeholder="Ej. 300" class="bg-gray-800 text-white text-sm px-3 py-2 rounded-lg w-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button onclick="guardarTecho()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition cursor-pointer">Guardar</button>
-            </div>
-            <p id="mensajeTecho" class="text-xs mt-2 text-center h-4"></p>
-        </div>
-
-        <!-- Credenciales -->
-        <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
-            <h3 class="text-sm font-semibold text-gray-300 mb-3">Credenciales de Binance</h3>
-            <div class="space-y-3">
-                <input type="text" id="userId" placeholder="Correo / ID" class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700">
-                <input type="text" id="apiKey" placeholder="API Key" class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700">
-                
-                <div class="relative">
-                    <input type="password" id="apiSecret" placeholder="API Secret" class="w-full bg-gray-800 text-sm text-white px-3 py-2 pr-10 rounded-lg border border-gray-700">
-                    <button type="button" onclick="togglePassword()" class="absolute right-3 top-2 text-gray-500 hover:text-white">👁️</button>
+        <div id="loginSection" class="form-section {{ login_section_active }}">
+            <form action="/login" method="post">
+                <label>Correo Electrónico</label>
+                <input type="email" name="email" required placeholder="correo@ejemplo.com">
+                <label>Contraseña</label>
+                <div class="password-container">
+                    <input type="password" name="password" id="loginPassword" required placeholder="••••••••">
+                    <button type="button" class="toggle-password" onclick="togglePassword('loginPassword', this)">👁️</button>
                 </div>
+                <button type="submit" class="btn-gold" style="margin-top: 10px;">Ingresar a La Bóveda</button>
+            </form>
+            <div class="link-text" onclick="switchTab('recovery')">¿Olvidaste tu contraseña? <span>Recupérala aquí</span></div>
+        </div>
 
-                <select id="modeSelect" class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700">
-                    <option value="testnet">Testnet (Pruebas)</option>
-                    <option value="mainnet">Mainnet (Real)</option>
-                </select>
-                <button onclick="guardarCredenciales()" class="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-lg font-medium transition cursor-pointer mt-2">Vincular y Guardar</button>
+        <div id="registerSection" class="form-section {{ register_section_active }}">
+            <form action="/register" method="post">
+                <label>Correo Electrónico</label>
+                <input type="email" name="email" required placeholder="correo@ejemplo.com">
+                <label>Contraseña</label>
+                <div class="password-container">
+                    <input type="password" name="password" id="regPassword" required placeholder="••••••••">
+                    <button type="button" class="toggle-password" onclick="togglePassword('regPassword', this)">👁️</button>
+                </div>
+                <label>Repetir Contraseña</label>
+                <div class="password-container">
+                    <input type="password" name="confirm_password" id="regConfirmPassword" required placeholder="••••••••">
+                    <button type="button" class="toggle-password" onclick="togglePassword('regConfirmPassword', this)">👁️</button>
+                </div>
+                <button type="submit" class="btn-gold" style="margin-top: 10px;">Crear Cuenta</button>
+            </form>
+        </div>
+
+        <div id="recoverySection" class="form-section {{ recovery_section_active }}">
+            <form action="/recovery" method="post">
+                <label>Correo de Recuperación</label>
+                <input type="email" name="email" required placeholder="correo@ejemplo.com">
+                <label>Nueva Contraseña</label>
+                <div class="password-container">
+                    <input type="password" name="new_password" id="recPassword" required placeholder="••••••••">
+                    <button type="button" class="toggle-password" onclick="togglePassword('recPassword', this)">👁️</button>
+                </div>
+                <button type="submit" class="btn-gold" style="margin-top: 10px;">Restablecer Contraseña</button>
+            </form>
+            <div class="link-text" onclick="switchTab('login')">Volver al <span>Inicio de Sesión</span></div>
+        </div>
+    </div>
+
+    <div class="dashboard-container" id="dashboardBox">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.9 (Riesgo 1%)</span></h1>
+            <a href="/logout" class="btn-logout">Cerrar Sesión</a>
+        </div>
+        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Notificaciones en Bloque y Riesgo al 1%</div>
+        
+         <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <label>Estado del Motor:</label>
+                    <div class="value-text" style="margin-top: 4px;">{{ motor_status_text }}</div>
+                </div>
+                <div><span class="{{ badge_class }}">{{ badge_text }}</span></div>
             </div>
-            <p id="mensajeCredenciales" class="text-xs mt-2 text-center h-4"></p>
+        </div>
+
+        <div class="row">
+            <div class="col card">
+                <label>Balance Disponible (PnL Total)</label>
+                <div class="balance-text">${{ total_pnl }} USDT</div>
+            </div>
+            <div class="col card">
+                <label>Op. Registradas / Activas</label>
+                <div class="value-text" style="font-size: 18px;">{{ total_ops }}</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <form action="/update-capital" method="post">
+                <label for="capital">Ajustar Techo de Capital (USDT)</label>
+                <div class="row" style="align-items: center; margin-top: 5px;">
+                    <div class="col" style="flex: 3;">
+                        <input type="number" step="0.1" id="capital" name="capital" value="{{ capital_ceiling }}" style="margin-bottom: 0;">
+                    </div>
+                    <div class="col" style="flex: 1;">
+                        <button type="submit" class="btn-gold" style="width: 100%;">Guardar</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <form action="/update-trading-config" method="post">
+                <label style="color: #fbbf24; margin-bottom: 10px; font-size: 13px;">⚙️ Configuración de Operación (Demo vs Live)</label>
+                <div class="row">
+                    <div class="col">
+                        <label>Modo de Operación</label>
+                        <select name="trading_mode">
+                            <option value="demo" {{ demo_selected }}>Demo / Testnet (Simulación)</option>
+                            <option value="live" {{ live_selected }}>Real / Live (Binance Dinero Real)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row" style="margin-top: 5px;">
+                    <div class="col">
+                        <label>Binance API Key</label>
+                        <div class="password-container">
+                            <input type="password" name="binance_api_key" id="dashApiKey" value="{{ binance_api_key }}" placeholder="Tu API Key de Binance">
+                            <button type="button" class="toggle-password" onclick="togglePassword('dashApiKey', this)">👁️</button>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <label>Binance Secret Key</label>
+                        <div class="password-container">
+                            <input type="password" name="binance_secret_key" id="dashSecret" value="{{ binance_secret_key }}" placeholder="Tu Secret Key">
+                            <button type="button" class="toggle-password" onclick="togglePassword('dashSecret', this)">👁️</button>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn-gold" style="margin-top: 5px;">Guardar Configuración y Validar Llaves</button>
+            </form>
+        </div>
+
+        <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 20px;">
+            <form action="/run-bot" method="post">
+                <button type="submit" class="btn-sim" {{ btn_disabled }} style="{{ btn_style }}">Simular Compra por Oportunidad (IA Autoevolutiva)</button>
+            </form>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 style="margin: 0; color: #9ca3af; font-size: 14px;">Historial de Operaciones</h3>
+            <button onclick="descargarPDF()" class="btn-pdf">📄 Descargar PDF</button>
+        </div>
+        
+        <div class="table-container">
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>Par</th>
+                        <th>Tipo</th>
+                        <th>Monto (Riesgo 1%)</th>
+                        <th>Estado / PnL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ operations_rows | safe }}
+                </tbody>
+            </table>
         </div>
     </div>
 
     <script>
-        window.addEventListener('DOMContentLoaded', () => {
-            const savedUserId = localStorage.getItem('user_id');
-            if (savedUserId) {
-                document.getElementById('userId').value = savedUserId;
-                consultarEstado();
-            }
-        });
-
-        function togglePassword() {
-            const input = document.getElementById('apiSecret');
-            input.type = input.type === 'password' ? 'text' : 'password';
-        }
-
-        async function guardarCredenciales() {
-            const userId = document.getElementById('userId').value.trim();
-            const apiKey = document.getElementById('apiKey').value.trim();
-            const apiSecret = document.getElementById('apiSecret').value.trim();
-            const mode = document.getElementById('modeSelect').value;
-            const msgEl = document.getElementById('mensajeCredenciales');
-
-            if (!userId || !apiKey || !apiSecret) {
-                msgEl.style.color = "#f87171";
-                msgEl.innerText = "Por favor completa todos los campos.";
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, api_key: apiKey, api_secret: apiSecret, mode: mode })
-                });
-
-                const data = await response.json();
-                if (response.ok) {
-                    localStorage.setItem('user_id', userId);
-                    msgEl.style.color = "#4ade80";
-                    msgEl.innerText = "¡Vinculado con éxito!";
-                    consultarEstado();
-                } else {
-                    msgEl.style.color = "#f87171";
-                    msgEl.innerText = data.detail || "Error al vincular.";
-                }
-            } catch (error) {
-                msgEl.style.color = "#f87171";
-                msgEl.innerText = "Error de conexión.";
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+            if(tabName === 'login') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('loginSection').classList.add('active');
+            } else if(tabName === 'register') {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('registerSection').classList.add('active');
+            } else if(tabName === 'recovery') {
+                document.getElementById('recoverySection').classList.add('active');
             }
         }
 
-        async function guardarTecho() {
-            const userId = localStorage.getItem('user_id');
-            const nuevoTecho = parseFloat(document.getElementById('inputTecho').value);
-            const msgEl = document.getElementById('mensajeTecho');
-
-            if (!userId) {
-                msgEl.style.color = "#f87171";
-                msgEl.innerText = "Primero vincula tu usuario.";
-                return;
-            }
-
-            if (isNaN(nuevoTecho)) {
-                msgEl.style.color = "#f87171";
-                msgEl.innerText = "Ingresa un número válido.";
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/configurar-techo', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, techo_capital: nuevoTecho })
-                });
-
-                if (response.ok) {
-                    document.getElementById('displayTecho').innerText = nuevoTecho.toFixed(2) + " USDT";
-                    msgEl.style.color = "#4ade80";
-                    msgEl.innerText = "Techo actualizado.";
-                } else {
-                    msgEl.style.color = "#f87171";
-                    msgEl.innerText = "Error al actualizar.";
-                }
-            } catch (error) {
-                msgEl.style.color = "#f87171";
-                msgEl.innerText = "Error de conexión.";
+        function togglePassword(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                btn.textContent = '👁️';
             }
         }
 
-        async function consultarEstado() {
-            const userId = localStorage.getItem('user_id');
-            if (!userId) return;
-
-            try {
-                const response = await fetch(`/api/estado?user_id=${encodeURIComponent(userId)}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    if (data.balance !== undefined) {
-                        document.getElementById('balanceTotal').innerText = Number(data.balance).toFixed(2) + " USDT";
-                    }
-
-                    if (data.operaciones_activas !== undefined) {
-                        document.getElementById('displayOperaciones').innerText = data.operaciones_activas;
-                    }
-
-                    if (data.techo_capital !== undefined) {
-                        document.getElementById('displayTecho').innerText = Number(data.techo_capital).toFixed(2) + " USDT";
-                    }
-
-                    const estadoEl = document.getElementById('estadoConexion');
-                    if (data.activo) {
-                        estadoEl.innerText = "Activo / Escaneando";
-                        estadoEl.className = "text-xs font-semibold px-2.5 py-1 rounded-full bg-green-900 text-green-300";
-                    } else {
-                        estadoEl.innerText = "En Pausa / Inactivo";
-                        estadoEl.className = "text-xs font-semibold px-2.5 py-1 rounded-full bg-red-900 text-red-300";
-                    }
-                }
-            } catch (error) {
-                const estadoEl = document.getElementById('estadoConexion');
-                estadoEl.innerText = "Error de Red";
-                estadoEl.className = "text-xs font-semibold px-2.5 py-1 rounded-full bg-red-900 text-red-300";
-            }
+        function descargarPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFontSize(16);
+            doc.setTextColor(251, 191, 36);
+            doc.text("Historial de Operaciones - La Bóveda", 14, 20);
+            
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            const fecha = new Date().toLocaleString('es-ES');
+            doc.text("Generado el: " + fecha, 14, 27);
+            
+            doc.autoTable({
+                html: '#historyTable',
+                startY: 35,
+                theme: 'grid',
+                headStyles: { fillColor: [17, 24, 39], textColor: [251, 191, 36] },
+                styles: { fontSize: 10, cellPadding: 4 }
+            });
+            
+            doc.save('Historial_La_Boveda.pdf');
         }
-
-        setInterval(consultarEstado, 5000);
     </script>
 </body>
 </html>
