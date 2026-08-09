@@ -20,6 +20,27 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@T
 TELEGRAM_BOT_TOKEN = "8610300157:AAG86zeR58BF-o42_ZyyJPYneZf3uzmBxes"
 TELEGRAM_CHAT_ID = "8536842251"
 
+# --- NUEVO: ESTADO GLOBAL DE OPERACIÓN Y PING INTELIGENTE ---
+bot_status = {
+    "is_operating": False,
+    "mode": "demo"
+}
+
+def send_telegram_alert(message: str):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception:
+        pass
+
+def send_ping(message: str):
+    """Envía el ping o latido únicamente si el bot se encuentra operando activamente."""
+    if bot_status["is_operating"]:
+        send_telegram_alert(f"🟢 *Ping de Monitoreo [Modo: {bot_status['mode'].upper()}]:* {message}")
+
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
@@ -359,6 +380,7 @@ HTML_TEMPLATE = """
             </form>
         </div>
 
+        <!-- CONFIGURACIÓN DE TRADING Y CAMBIO DE MODO -->
         <div class="card">
             <form action="/update-trading-config" method="post">
                 <label style="color: #fbbf24; margin-bottom: 10px; font-size: 13px;">⚙️ Configuración de Operación (Demo vs Live)</label>
@@ -471,16 +493,6 @@ HTML_TEMPLATE = """
 </html>
 """
 
-def send_telegram_alert(message: str):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
-    try:
-        requests.post(url, json=payload, timeout=5)
-    except Exception:
-        pass
-
 def evaluate_market_with_ai(pattern_hash: str) -> bool:
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -586,6 +598,13 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                 """
 
     is_valid_keys = verify_binance_credentials(binance_api_key, binance_secret_key, trading_mode)
+
+    # --- ACTUALIZACIÓN AUTOMÁTICA DEL ESTADO DEL PING SEGÚN VALIDACIÓN Y MODO ---
+    if is_valid_keys:
+        bot_status["mode"] = trading_mode
+        bot_status["is_operating"] = True
+    else:
+        bot_status["is_operating"] = False
 
     demo_selected = "selected" if trading_mode == "demo" else ""
     live_selected = "selected" if trading_mode == "live" else ""
@@ -723,6 +742,8 @@ async def recovery(email: str = Form(...), new_password: str = Form(...)):
 
 @app.get("/logout")
 async def logout(session_token: Optional[str] = Cookie(None)):
+    # Al cerrar sesión, pausamos también el ping por seguridad
+    bot_status["is_operating"] = False
     if session_token:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -738,8 +759,8 @@ async def logout(session_token: Optional[str] = Cookie(None)):
 @app.post("/update-capital")
 async def update_capital(capital: str = Form(...), session_token: Optional[str] = Cookie(None)):
     if not get_current_user(session_token):
-        return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
-
+        return RedirectResponse(url="/", status_code=303)
+    
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (capital,))
@@ -748,73 +769,79 @@ async def update_capital(capital: str = Form(...), session_token: Optional[str] 
     conn.close()
     return RedirectResponse(url="/", status_code=303)
 
+# --- NUEVA RUTA ACTUALIZADA PARA GESTIONAR CAMBIO DE MODO Y DETENER/ACTIVAR PING ---
 @app.post("/update-trading-config")
 async def update_trading_config(
-    trading_mode: str = Form(...),
-    binance_api_key: str = Form(...),
-    binance_secret_key: str = Form(...),
+    trading_mode: str = Form(...), 
+    binance_api_key: str = Form(...), 
+    binance_secret_key: str = Form(...), 
     session_token: Optional[str] = Cookie(None)
 ):
     if not get_current_user(session_token):
-        return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
+    
+    # 1. Al cambiar configuración o modo, detenemos temporalmente el ping de forma preventiva
+    bot_status["is_operating"] = False
+    send_telegram_alert("⚠️ *Aviso de La Bóveda:* Se ha solicitado un cambio de configuración/modo. Pausando temporalmente el ping de control.")
 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (trading_mode,))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_api_key,))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_secret_key,))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_api_key.strip(),))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_secret_key.strip(),))
     conn.commit()
     cursor.close()
     conn.close()
-    return RedirectResponse(url="/", status_code=303)
+
+    # 2. Validamos de inmediato las credenciales para el nuevo modo
+    is_valid = verify_binance_credentials(binance_api_key.strip(), binance_secret_key.strip(), trading_mode)
+
+    if is_valid:
+        # Si son válidas, activamos el estado operativo y el ping se reactiva solo para el nuevo modo
+        bot_status["mode"] = trading_mode
+        bot_status["is_operating"] = True
+        send_ping(f"Configuración actualizada con éxito. Motor operando en modo *{trading_mode.upper()}*.")
+        return RedirectResponse(url="/?msg=Configuracion%20actualizada%20y%20llaves%20validadas%20correctamente", status_code=303)
+    else:
+        # Si fallan, el bot se queda inactivo y se notifica el error
+        send_telegram_alert(f"❌ *Error crítico:* Las llaves proporcionadas para el modo *{trading_mode.upper()}* no pasaron la validación. El motor y el ping permanecen detenidos.")
+        return RedirectResponse(url="/?msg=Las%20llaves%20de%20Binance%20son%20invalidas%20para%20el%20modo%20seleccionado", status_code=303)
 
 @app.post("/run-bot")
 async def run_bot(session_token: Optional[str] = Cookie(None)):
     if not get_current_user(session_token):
-        return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
+        return RedirectResponse(url="/", status_code=303)
+    
+    # Verificación de seguridad antes de ejecutar operación
+    if not bot_status["is_operating"]:
+        return RedirectResponse(url="/?msg=El%20motor%20esta%20detenido%20o%20las%20llaves%20no%20estan%20validadas", status_code=303)
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
-    ak = cursor.fetchone()
-    cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
-    sk = cursor.fetchone()
     cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-    tm = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    mode_row = cursor.fetchone()
+    current_mode = mode_row['value'] if mode_row else "demo"
 
-    api_key = ak['value'] if ak else ""
-    secret_key = sk['value'] if sk else ""
-    mode = tm['value'] if tm else "demo"
-
-    if not verify_binance_credentials(api_key, secret_key, mode):
-        return RedirectResponse(url="/?msg=Acción%20bloqueada:%20Llaves%20de%20Binance%20inválidas%20o%20vacías", status_code=303)
-
-    # Simulación de operación exitosa por oportunidad con IA
-    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "ADAUSDT"]
-    symbol = random.choice(symbols)
+    # Simulación de operación de oportunidad protegida con IA y riesgo al 1%
+    symbol = "BTCUSDT"
     action = "BUY"
-    price = round(random.uniform(50.0, 30000.0), 2)
-    amount = 1.00 # 1% del riesgo o monto fijo estipulado
-    profit_loss = round(random.uniform(-2.50, 5.00), 2)
-    status = "COMPLETADO" if profit_loss >= 0 else "CERRADO EN PÉRDIDA"
-    timestamp = datetime.utcnow().isoformat()
-    pattern_hash = hashlib.sha256(f"{symbol}{timestamp}".encode()).hexdigest()[:10]
+    amount = 1.00 # 1% del capital base de prueba
+    price = round(random.uniform(60000.0, 68000.0), 2)
+    pattern_hash = hashlib.sha256(f"{price}{datetime.utcnow()}".encode()).hexdigest()[:10]
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
+    ai_approved = evaluate_market_with_ai(pattern_hash)
+    status = "COMPLETED" if ai_approved else "BLOCKED_BY_AI"
+    profit_loss = round(random.uniform(-0.50, 1.20), 2) if ai_approved else 0.00
+
+    cursor.execute('''
         INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-        (timestamp, mode, symbol, action, price, amount, status, profit_loss, pattern_hash)
-    )
+    ''', (datetime.utcnow().isoformat(), current_mode, symbol, action, price, amount, status, profit_loss, pattern_hash))
     conn.commit()
     cursor.close()
     conn.close()
 
-    send_telegram_alert(f"🤖 *La Bóveda - Operación Ejecutada*\nPar: {symbol}\nAcción: {action}\nPnL: {profit_loss} USDT\nEstado: {status}")
+    # Disparamos un ping informativo tras la operación si todo marcha bien
+    send_ping(f"Operación ejecutada en {symbol} ({action}) bajo modo {current_mode.upper()}. PnL: {profit_loss} USDT")
 
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/?msg=Simulacion%20ejecutada%20exitosamente", status_code=303)
