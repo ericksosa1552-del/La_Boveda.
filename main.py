@@ -4,6 +4,7 @@ import hashlib
 import os
 import hmac
 import time
+import threading
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -11,7 +12,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="4.3")
+app = FastAPI(title="La Bóveda", version="4.4")
 
 # URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
@@ -40,6 +41,16 @@ def send_ping(message: str):
     """Envía el ping o latido únicamente si el bot se encuentra operando activamente."""
     if bot_status["is_operating"]:
         send_telegram_alert(f"🟢 *Ping de Monitoreo [Modo: {bot_status['mode'].upper()}]:* {message}")
+
+def background_ping_loop():
+    """Hilo en segundo plano que revisa y envía un ping de latido cada 10 minutos."""
+    while True:
+        time.sleep(600)  # 600 segundos = 10 minutos
+        if bot_status["is_operating"]:
+            send_ping("El motor se encuentra activo, monitoreando el mercado y operando con normalidad bajo el riesgo del 1%.")
+
+# Iniciamos el hilo automático en segundo plano al arrancar la app
+threading.Thread(target=background_ping_loop, daemon=True).start()
 
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
@@ -323,10 +334,10 @@ HTML_TEMPLATE = """
 
     <div class="dashboard-container" id="dashboardBox">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.3 (Riesgo 1%)</span></h1>
+            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.4 (Riesgo 1%)</span></h1>
             <a href="/logout" class="btn-logout">Cerrar Sesión</a>
         </div>
-        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Handshake API y Riesgo al 1%</div>
+        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Ping cada 10 min y Riesgo al 1%</div>
         
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
