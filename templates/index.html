@@ -97,6 +97,26 @@
         }
         .btn-pdf:hover { background-color: #2563eb; }
 
+        /* Estilo para el botón de Paro de Emergencia / Kill Switch */
+        .btn-emergency {
+            width: 100%;
+            background-color: {% if emergency_stop.lower() == 'true' %}#059669{% else %}#dc2626{% endif %};
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .btn-emergency:hover {
+            background-color: {% if emergency_stop.lower() == 'true' %}#047857{% else %}#b91c1c{% endif %};
+        }
+
         .link-text { text-align: center; font-size: 12px; color: #9ca3af; margin-top: 15px; cursor: pointer; }
         .link-text span { color: #fbbf24; text-decoration: underline; }
 
@@ -184,10 +204,10 @@
 
     <div class="dashboard-container" id="dashboardBox">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.9 (Riesgo 1%)</span></h1>
+            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v5.0 (Riesgo 1%)</span></h1>
             <a href="/logout" class="btn-logout">Cerrar Sesión</a>
         </div>
-        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Notificaciones en Bloque y Riesgo al 1%</div>
+        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Notificaciones en Bloque, Kill Switch y Riesgo al 1%</div>
         
          <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -198,6 +218,13 @@
                 <div><span class="{{ badge_class }}">{{ badge_text }}</span></div>
             </div>
         </div>
+
+        <!-- Botón de Control de Emergencia (Kill Switch) -->
+        <form action="/toggle-emergency-stop" method="post">
+            <button type="submit" class="btn-emergency">
+                {% if emergency_stop.lower() == 'true' %}🟢 Desactivar Paro de Emergencia (Reanudar Operaciones){% else %}🚨 Activar Paro de Emergencia (Kill Switch){% endif %}
+            </button>
+        </form>
 
         <div class="row">
             <div class="col card">
