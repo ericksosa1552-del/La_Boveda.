@@ -181,6 +181,26 @@ HTML_TEMPLATE = """
             width: 100%; padding: 10px; background: #111827; border: 1px solid #4b5563;
             color: white; border-radius: 6px; box-sizing: border-box; font-size: 14px; margin-bottom: 12px;
         }
+
+        .password-container {
+            position: relative;
+        }
+        .password-container input {
+            padding-right: 40px;
+        }
+        .toggle-password {
+            position: absolute;
+            right: 12px;
+            top: 10px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #9ca3af;
+        }
+        .toggle-password:hover {
+            color: white;
+        }
         
         .btn-gold {
             background-color: #fbbf24; color: #111827; border: none; padding: 10px 20px;
@@ -255,7 +275,10 @@ HTML_TEMPLATE = """
                 <label>Correo Electrónico</label>
                 <input type="email" name="email" required placeholder="correo@ejemplo.com">
                 <label>Contraseña</label>
-                <input type="password" name="password" required placeholder="••••••••">
+                <div class="password-container">
+                    <input type="password" name="password" id="loginPassword" required placeholder="••••••••">
+                    <button type="button" class="toggle-password" onclick="togglePassword('loginPassword', this)">👁️</button>
+                </div>
                 <button type="submit" class="btn-gold" style="margin-top: 10px;">Ingresar a La Bóveda</button>
             </form>
             <div class="link-text" onclick="switchTab('recovery')">¿Olvidaste tu contraseña? <span>Recupérala aquí</span></div>
@@ -266,9 +289,15 @@ HTML_TEMPLATE = """
                 <label>Correo Electrónico</label>
                 <input type="email" name="email" required placeholder="correo@ejemplo.com">
                 <label>Contraseña</label>
-                <input type="password" name="password" required placeholder="••••••••">
+                <div class="password-container">
+                    <input type="password" name="password" id="regPassword" required placeholder="••••••••">
+                    <button type="button" class="toggle-password" onclick="togglePassword('regPassword', this)">👁️</button>
+                </div>
                 <label>Repetir Contraseña</label>
-                <input type="password" name="confirm_password" required placeholder="••••••••">
+                <div class="password-container">
+                    <input type="password" name="confirm_password" id="regConfirmPassword" required placeholder="••••••••">
+                    <button type="button" class="toggle-password" onclick="togglePassword('regConfirmPassword', this)">👁️</button>
+                </div>
                 <button type="submit" class="btn-gold" style="margin-top: 10px;">Crear Cuenta</button>
             </form>
         </div>
@@ -278,7 +307,10 @@ HTML_TEMPLATE = """
                 <label>Correo de Recuperación</label>
                 <input type="email" name="email" required placeholder="correo@ejemplo.com">
                 <label>Nueva Contraseña</label>
-                <input type="password" name="new_password" required placeholder="••••••••">
+                <div class="password-container">
+                    <input type="password" name="new_password" id="recPassword" required placeholder="••••••••">
+                    <button type="button" class="toggle-password" onclick="togglePassword('recPassword', this)">👁️</button>
+                </div>
                 <button type="submit" class="btn-gold" style="margin-top: 10px;">Restablecer Contraseña</button>
             </form>
             <div class="link-text" onclick="switchTab('login')">Volver al <span>Inicio de Sesión</span></div>
@@ -342,11 +374,14 @@ HTML_TEMPLATE = """
                 <div class="row" style="margin-top: 5px;">
                     <div class="col">
                         <label>Binance API Key</label>
-                        <input type="password" name="binance_api_key" value="{{ binance_api_key }}" placeholder="Tu API Key de Binance">
+                        <input type="text" name="binance_api_key" value="{{ binance_api_key }}" placeholder="Tu API Key de Binance">
                     </div>
                     <div class="col">
                         <label>Binance Secret Key</label>
-                        <input type="password" name="binance_secret_key" value="{{ binance_secret_key }}" placeholder="Tu Secret Key de Binance">
+                        <div class="password-container">
+                            <input type="password" name="binance_secret_key" id="dashSecret" value="{{ binance_secret_key }}" placeholder="Tu Secret Key">
+                            <button type="button" class="toggle-password" onclick="togglePassword('dashSecret', this)">👁️</button>
+                        </div>
                     </div>
                 </div>
                 <button type="submit" class="btn-gold" style="margin-top: 5px;">Guardar Configuración y Validar Llaves</button>
@@ -397,6 +432,17 @@ HTML_TEMPLATE = """
             }
         }
 
+        function togglePassword(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                btn.textContent = '👁️';
+            }
+        }
+
         function descargarPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -436,7 +482,6 @@ def send_telegram_alert(message: str):
         pass
 
 def evaluate_market_with_ai(pattern_hash: str) -> bool:
-    """Autoevolución de la IA: Evalúa el mercado y recalibra umbrales según rachas de pérdida."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT profit_loss FROM operations ORDER BY id DESC LIMIT 5")
@@ -448,7 +493,6 @@ def evaluate_market_with_ai(pattern_hash: str) -> bool:
         losses_count = sum(1 for op in recent_ops if op['profit_loss'] < 0)
         if losses_count >= 2:
             return False
-            
     return True
 
 def get_current_user(session_token: Optional[str]) -> Optional[str]:
@@ -721,6 +765,8 @@ async def update_trading_config(
 @app.api_route("/run-bot", methods=["GET", "POST"])
 async def run_bot(session_token: Optional[str] = Cookie(None)):
     user_logged = get_current_user(session_token)
+    if not user_logged:
+        return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
     
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -733,7 +779,6 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
     cap_row = cursor.fetchone()
     capital_ceiling = float(cap_row['value']) if cap_row else 100.0
 
-    # Regla estricta de gestión de riesgo: Asignar exactamente el 1% del techo de capital
     amount_sim = round(capital_ceiling * 0.01, 2)
 
     pattern_hash = hashlib.sha256(f"BTC/USDT-{time.time()}".encode()).hexdigest()[:16]
@@ -773,9 +818,7 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
 
     send_telegram_alert(msg)
 
-    if session_token and user_logged:
-        return RedirectResponse(url="/", status_code=303)
-    return {"status": "success", "mode": current_mode}
+    return RedirectResponse(url="/", status_code=303)
 
 if __name__ == "__main__":
     import uvicorn
