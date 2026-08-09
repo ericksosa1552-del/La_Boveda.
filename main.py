@@ -1,12 +1,8 @@
-import random
-import requests
-import hashlib
 import os
-import hmac
-import time
+from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from fastapi import FastAPI, Request, Form, Response, Cookie
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 import psycopg2
@@ -14,12 +10,10 @@ from psycopg2.extras import RealDictCursor
 
 app = FastAPI(title="La Bóveda", version="5.0")
 
-# Configurar la carpeta de templates para que FastAPI lea el HTML correcto
-templates = Jinja2Templates(directory="templates")
+# Definir la ruta absoluta para que Render encuentre la carpeta templates siempre
+BASE_DIR = Path(__file__).resolve().parent
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-# ==========================================
-# CONFIGURACIÓN DE ZONA HORARIA (HORA LOCAL)
-# ==========================================
 ZONA_HORARIA_OFFSET = -6  
 tz_local = timezone(timedelta(hours=ZONA_HORARIA_OFFSET))
 
@@ -28,47 +22,45 @@ def obtener_hora_local():
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8536842251")
-
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS operations (
-            id SERIAL PRIMARY KEY,
-            timestamp TEXT,
-            mode TEXT,
-            symbol TEXT,
-            action TEXT,
-            price REAL,
-            amount REAL,
-            status TEXT,
-            profit_loss REAL,
-            market_pattern_id TEXT
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    ''')
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', '500.0') ON CONFLICT (key) DO NOTHING")
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', 'testnet') ON CONFLICT (key) DO NOTHING")
-    conn.commit()
-    cursor.close()
-    conn.close()
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS operations (
+                id SERIAL PRIMARY KEY,
+                timestamp TEXT,
+                mode TEXT,
+                symbol TEXT,
+                action TEXT,
+                price REAL,
+                amount REAL,
+                status TEXT,
+                profit_loss REAL,
+                market_pattern_id TEXT
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', '500.0') ON CONFLICT (key) DO NOTHING")
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', 'testnet') ON CONFLICT (key) DO NOTHING")
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error conectando a la base de datos al iniciar: {e}")
 
 init_db()
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    # Renderiza la interfaz limpia desde la carpeta templates
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.post("/api/token")
@@ -94,7 +86,6 @@ async def api_token(data: dict):
 
 @app.post("/api/configurar-techo")
 async def configurar_techo(data: dict):
-    user_id = data.get("user_id")
     techo_capital = data.get("techo_capital")
     
     if techo_capital is None:
