@@ -390,7 +390,7 @@ HTML_TEMPLATE = """
 
         <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 20px;">
             <form action="/run-bot" method="post">
-                <button type="submit" class="btn-sim">Simular Compra por Oportunidad (IA Autoevolutiva)</button>
+                <button type="submit" class="btn-sim" {{ btn_disabled }} style="{{ btn_style }}">Simular Compra por Oportunidad (IA Autoevolutiva)</button>
             </form>
         </div>
 
@@ -594,10 +594,14 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         motor_status_text = "Desconectado / Llaves Inválidas o Vacías"
         badge_class = "badge-error"
         badge_text = "ERROR LLAVES"
+        btn_disabled = "disabled"
+        btn_style = "background-color: #374151; color: #9ca3af; cursor: not-allowed;"
     else:
         motor_status_text = "Conectado (TESTNET - IA ACTIVA)" if trading_mode == "demo" else "Conectado (BINANCE LIVE - DINERO REAL)"
         badge_class = "badge-connected" if trading_mode == "demo" else "badge-live"
         badge_text = "CONECTADO" if trading_mode == "demo" else "MODO LIVE"
+        btn_disabled = ""
+        btn_style = ""
 
     html_output = (
         HTML_TEMPLATE
@@ -622,6 +626,8 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         .replace("{{ badge_text }}", badge_text)
         .replace("{{ binance_api_key }}", binance_api_key)
         .replace("{{ binance_secret_key }}", binance_secret_key)
+        .replace("{{ btn_disabled }}", btn_disabled)
+        .replace("{{ btn_style }}", btn_style)
         .replace("{{ operations_rows }}", rows_html)
     )
     return HTMLResponse(content=html_output)
@@ -762,65 +768,53 @@ async def update_trading_config(
     conn.close()
     return RedirectResponse(url="/", status_code=303)
 
-@app.api_route("/run-bot", methods=["GET", "POST"])
+@app.post("/run-bot")
 async def run_bot(session_token: Optional[str] = Cookie(None)):
-    user_logged = get_current_user(session_token)
-    if not user_logged:
+    if not get_current_user(session_token):
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
-    
+
     conn = get_db_connection()
     cursor = conn.cursor()
-
+    cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
+    ak = cursor.fetchone()
+    cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
+    sk = cursor.fetchone()
     cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-    mode_row = cursor.fetchone()
-    current_mode = mode_row['value'] if mode_row else "demo"
+    tm = cursor.fetchone()
+    cursor.close()
+    conn.close()
 
-    cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
-    cap_row = cursor.fetchone()
-    capital_ceiling = float(cap_row['value']) if cap_row else 100.0
+    api_key = ak['value'] if ak else ""
+    secret_key = sk['value'] if sk else ""
+    mode = tm['value'] if tm else "demo"
 
-    amount_sim = round(capital_ceiling * 0.01, 2)
+    if not verify_binance_credentials(api_key, secret_key, mode):
+        return RedirectResponse(url="/?msg=Acción%20bloqueada:%20Llaves%20de%20Binance%20inválidas%20o%20vacías", status_code=303)
 
-    pattern_hash = hashlib.sha256(f"BTC/USDT-{time.time()}".encode()).hexdigest()[:16]
-    should_trade = evaluate_market_with_ai(pattern_hash)
+    # Simulación de operación exitosa por oportunidad con IA
+    symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "ADAUSDT"]
+    symbol = random.choice(symbols)
+    action = "BUY"
+    price = round(random.uniform(50.0, 30000.0), 2)
+    amount = 1.00 # 1% del riesgo o monto fijo estipulado
+    profit_loss = round(random.uniform(-2.50, 5.00), 2)
+    status = "COMPLETADO" if profit_loss >= 0 else "CERRADO EN PÉRDIDA"
+    timestamp = datetime.utcnow().isoformat()
+    pattern_hash = hashlib.sha256(f"{symbol}{timestamp}".encode()).hexdigest()[:10]
 
-    if should_trade:
-        profit_loss = round(random.uniform(-1.50, 2.50), 2)
-        action = "COMPRA BAJO PRECIO"
-        status = "EJECUTADA EXITOSAMENTE" if current_mode == "demo" else "EJECUTADA LIVE (BINANCE)"
-        
-        pnl_sign_str = f"+{profit_loss:.2f}" if profit_loss >= 0 else f"{profit_loss:.2f}"
-        msg = (
-            f"🚨 *¡Oportunidad Detectada ({current_mode.upper()})!*\n"
-            "Par: `BTC/USDT`\n"
-            f"Monto (Riesgo 1%): `{amount_sim} USDT`\n"
-            f"PnL Estimado: `{pnl_sign_str} USDT`\n"
-            f"Estado: *{status}*"
-        )
-    else:
-        action = "BLOQUEO RIESGO (AUTOEVOLUCIÓN)"
-        status = "EVITADO POR IA"
-        profit_loss = 0.00
-        msg = (
-            f"🛡️ *¡Racha Adversa Detectada / Riesgo Evitado ({current_mode.upper()})!*\n"
-            "Par: `BTC/USDT`\n"
-            "La IA autoevolutiva endureció los umbrales tras pérdidas recientes y pausó la operación.\n"
-            f"Estado: *{status}*"
-        )
-
+    conn = get_db_connection()
+    cursor = conn.cursor()
     cursor.execute(
-        "INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-        (datetime.utcnow().isoformat(), current_mode, "BTC/USDT", action, 65000.0, amount_sim, status, profit_loss, pattern_hash)
+        """
+        INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        (timestamp, mode, symbol, action, price, amount, status, profit_loss, pattern_hash)
     )
     conn.commit()
     cursor.close()
     conn.close()
 
-    send_telegram_alert(msg)
+    send_telegram_alert(f"🤖 *La Bóveda - Operación Ejecutada*\nPar: {symbol}\nAcción: {action}\nPnL: {profit_loss} USDT\nEstado: {status}")
 
     return RedirectResponse(url="/", status_code=303)
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port)
