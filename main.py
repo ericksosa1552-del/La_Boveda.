@@ -4,6 +4,7 @@ import hashlib
 import os
 import hmac
 import time
+import json
 from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, Request, Form, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -348,6 +349,9 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
     emergency_stop = "false"
     rows_html = "<tr><td colspan='4' style='text-align: center; color: #6b7280;'>No hay operaciones registradas aún. Presiona simular.</td></tr>"
 
+    chart_labels_list = ["Inicio"]
+    chart_data_list = [100.0]
+
     if user_email:
         body_align = "flex-start"
         auth_position = "relative"
@@ -383,10 +387,26 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         es_row = cursor.fetchone()
         emergency_stop = es_row['value'] if es_row else "false"
         
+        cursor.execute("SELECT timestamp, symbol, action, amount, status, profit_loss FROM operations ORDER BY id ASC")
+        ops_all = cursor.fetchall()
+        
         cursor.execute("SELECT symbol, action, amount, status, profit_loss FROM operations ORDER BY id DESC LIMIT 200")
         ops = cursor.fetchall()
+        
         cursor.close()
         conn.close()
+
+        # Construir la curva de capital progresiva basada en el capital base y las operaciones
+        current_balance = float(capital_ceiling)
+        chart_labels_list = ["Base"]
+        chart_data_list = [round(current_balance, 2)]
+        
+        if ops_all:
+            for idx, op in enumerate(ops_all):
+                current_balance += op['profit_loss']
+                chart_labels_list.append(f"Op {idx+1}")
+                chart_data_list.append(round(current_balance, 2))
+
         if ops:
             rows_html = ""
             for op in ops:
@@ -467,6 +487,8 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                 "emergency_stop": emergency_stop,
                 "btn_disabled": btn_disabled,
                 "btn_style": btn_style,
+                "chart_labels": json.dumps(chart_labels_list),
+                "chart_data": json.dumps(chart_data_list),
                 "operations_rows": HTMLResponse(content=rows_html).body.decode("utf-8")
             }
         )
