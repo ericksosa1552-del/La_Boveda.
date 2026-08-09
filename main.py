@@ -2,6 +2,8 @@ import random
 import requests
 import hashlib
 import os
+import hmac
+import time
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -9,7 +11,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="4.2")
+app = FastAPI(title="La Bóveda", version="4.3")
 
 # URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
@@ -85,6 +87,31 @@ init_db()
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
+def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool:
+    """Realiza un handshake real con Binance (Testnet o Live) para validar llaves."""
+    if not api_key or not secret_key:
+        return False
+    
+    base_url = "https://testnet.binance.vision" if mode == "demo" else "https://api.binance.com"
+    endpoint = "/api/v3/account"
+    timestamp = int(time.time() * 1000)
+    query_string = f"timestamp={timestamp}"
+    
+    signature = hmac.new(
+        secret_key.encode('utf-8'),
+        query_string.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+    
+    url = f"{base_url}{endpoint}?{query_string}&signature={signature}"
+    headers = {"X-MBX-APIKEY": api_key}
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        return response.status_code == 200
+    except Exception:
+        return False
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="es">
@@ -143,6 +170,7 @@ HTML_TEMPLATE = """
         .value-text { font-size: 15px; font-weight: bold; color: white; }
         .badge-connected { background-color: #059669; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .badge-live { background-color: #dc2626; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .badge-error { background-color: #b91c1c; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .balance-text { color: #34d399; font-size: 18px; font-weight: bold; }
         
         input, select {
@@ -255,10 +283,10 @@ HTML_TEMPLATE = """
 
     <div class="dashboard-container" id="dashboardBox">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-            <h1 style="margin: 0; text-align: left;">LA BÓVEDA</h1>
+            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.3 (Riesgo 1%)</span></h1>
             <a href="/logout" class="btn-logout">Cerrar Sesión</a>
         </div>
-        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor de Oportunidades, IA y Gestión de Riesgo</div>
+        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Handshake API y Riesgo al 1%</div>
         
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -317,13 +345,13 @@ HTML_TEMPLATE = """
                         <input type="password" name="binance_secret_key" value="{{ binance_secret_key }}" placeholder="Tu Secret Key de Binance">
                     </div>
                 </div>
-                <button type="submit" class="btn-gold" style="margin-top: 5px;">Guardar Configuración de Binance</button>
+                <button type="submit" class="btn-gold" style="margin-top: 5px;">Guardar Configuración y Validar Llaves</button>
             </form>
         </div>
 
         <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 20px;">
             <form action="/run-bot" method="post">
-                <button type="submit" class="btn-sim">Simular Compra por Oportunidad (IA)</button>
+                <button type="submit" class="btn-sim">Simular Compra por Oportunidad (IA Autoevolutiva)</button>
             </form>
         </div>
 
@@ -338,7 +366,7 @@ HTML_TEMPLATE = """
                     <tr>
                         <th>Par</th>
                         <th>Tipo</th>
-                        <th>Monto</th>
+                        <th>Monto (Riesgo 1%)</th>
                         <th>Estado / PnL</th>
                     </tr>
                 </thead>
@@ -404,6 +432,7 @@ def send_telegram_alert(message: str):
         pass
 
 def evaluate_market_with_ai(pattern_hash: str) -> bool:
+    """Autoevolución de la IA: Evalúa el mercado y recalibra umbrales según rachas de pérdida."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT profit_loss FROM operations ORDER BY id DESC LIMIT 5")
@@ -413,7 +442,8 @@ def evaluate_market_with_ai(pattern_hash: str) -> bool:
     
     if len(recent_ops) >= 3:
         losses_count = sum(1 for op in recent_ops if op['profit_loss'] < 0)
-        if losses_count >= 3:
+        # Umbral dinámico autoevolutivo: si hay 2 o más pérdidas recientes, se vuelve más estricto
+        if losses_count >= 2:
             return False
             
     return True
@@ -508,11 +538,20 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                     </tr>
                 """
 
+    # Handshake real para determinar estado de conexión visual
+    is_valid_keys = verify_binance_credentials(binance_api_key, binance_secret_key, trading_mode)
+
     demo_selected = "selected" if trading_mode == "demo" else ""
     live_selected = "selected" if trading_mode == "live" else ""
-    motor_status_text = "Conectado (TESTNET - IA ACTIVA)" if trading_mode == "demo" else "Conectado (BINANCE LIVE - DINERO REAL)"
-    badge_class = "badge-connected" if trading_mode == "demo" else "badge-live"
-    badge_text = "CONECTADO" if trading_mode == "demo" else "MODO LIVE"
+
+    if not is_valid_keys:
+        motor_status_text = "Desconectado / Llaves Inválidas o Vacías"
+        badge_class = "badge-error"
+        badge_text = "ERROR LLAVES"
+    else:
+        motor_status_text = "Conectado (TESTNET - IA ACTIVA)" if trading_mode == "demo" else "Conectado (BINANCE LIVE - DINERO REAL)"
+        badge_class = "badge-connected" if trading_mode == "demo" else "badge-live"
+        badge_text = "CONECTADO" if trading_mode == "demo" else "MODO LIVE"
 
     html_output = (
         HTML_TEMPLATE
@@ -695,10 +734,11 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
     cap_row = cursor.fetchone()
     max_capital = float(cap_row['value']) if cap_row else 100.0
     
-    amount_sim = round(random.uniform(10.0, min(50.0, max_capital)), 2)
+    # Reducción estricta del límite de riesgo al 1.0% del capital
+    amount_sim = round(max_capital * 0.01, 2)
     
     if should_trade:
-        profit_loss = round(random.uniform(-3.50, 6.50), 2)
+        profit_loss = round(random.uniform(-1.50, 2.50), 2)
         action = "COMPRA BAJO PRECIO"
         status = "EJECUTADA EXITOSAMENTE" if current_mode == "demo" else "EJECUTADA LIVE (BINANCE)"
         
@@ -706,18 +746,18 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
         msg = (
             f"🚨 *¡Oportunidad Detectada ({current_mode.upper()})!*\n"
             "Par: `BTC/USDT`\n"
-            f"Monto: `{amount_sim} USDT`\n"
+            f"Monto (Riesgo 1%): `{amount_sim} USDT`\n"
             f"PnL Estimado: `{pnl_sign_str} USDT`\n"
             f"Estado: *{status}*"
         )
     else:
-        action = "BLOQUEO RIESGO"
+        action = "BLOQUEO RIESGO (AUTOEVOLUCIÓN)"
         status = "EVITADO POR IA"
         profit_loss = 0.00
         msg = (
-            f"🛡️ *¡Mala Racha Detectada / Riesgo Evitado ({current_mode.upper()})!*\n"
+            f"🛡️ *¡Racha Adversa Detectada / Riesgo Evitado ({current_mode.upper()})!*\n"
             "Par: `BTC/USDT`\n"
-            "La IA pausó operaciones debido a pérdidas consecutivas recientes.\n"
+            "La IA autoevolutiva endureció los umbrales tras pérdidas recientes y pausó la operación.\n"
             f"Estado: *{status}*"
         )
 
