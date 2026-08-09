@@ -9,7 +9,6 @@ from psycopg2.extras import RealDictCursor
 
 app = FastAPI(title="La Bóveda", version="5.0")
 
-# Carga directa de la carpeta templates (compatible con Render)
 templates = Jinja2Templates(directory="templates")
 
 ZONA_HORARIA_OFFSET = -6  
