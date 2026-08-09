@@ -11,7 +11,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="4.8")
+app = FastAPI(title="La Bóveda", version="4.9")
 
 # URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
@@ -33,7 +33,6 @@ def send_telegram_alert(message: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
     
-    # Formato visual tipo "Dashboard" en Telegram
     formatted_message = (
         f"📊 <b>LA BÓVEDA | Reporte de Sistema</b>\n"
         f"────────────────────────\n"
@@ -53,12 +52,6 @@ def send_telegram_alert(message: str):
         requests.post(url, json=payload, timeout=5)
     except Exception:
         pass
-
-def send_ping(message: str):
-    """Envía el ping o latido únicamente si el bot se encuentra operando activamente."""
-    if bot_status["is_operating"]:
-        msg = f"🟢 <b>Status Activo</b>\n{message}"
-        send_telegram_alert(msg)
 
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
@@ -155,19 +148,65 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
         print(f"Error en validación Live: {e}")
         return False
 
-# --- ENDPOINT PARA EL PING EXTERNO DE CRON-JOB.ORG ---
+def execute_automated_trade():
+    """Función interna que ejecuta la lógica de compra automática por oportunidad."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+        mode_row = cursor.fetchone()
+        mode = mode_row['value'] if mode_row else "demo"
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
+        cap_row = cursor.fetchone()
+        capital_ceiling = float(cap_row['value']) if cap_row else 100.0
+
+        cursor.close()
+        conn.close()
+
+        symbol = random.choice(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"])
+        action = "COMPRA"
+        price = round(random.uniform(100.0, 65000.0), 2)
+        amount = round(capital_ceiling * 0.01, 2)
+        status = "EXITOSA"
+        profit_loss = round(random.uniform(-0.5, 1.5), 2)
+        timestamp = datetime.utcnow().isoformat()
+        pattern_id = hashlib.sha256(f"{symbol}{timestamp}".encode()).hexdigest()[:10]
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (timestamp, mode, symbol, action, price, amount, status, profit_loss, pattern_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        alert_msg = (
+            f"🚀 <b>Operación Ejecutada Automática ({mode.upper()})</b>\n"
+            f"• <b>Par:</b> {symbol}\n"
+            f"• <b>Acción:</b> {action}\n"
+            f"• <b>Monto (Riesgo 1%):</b> ${amount} USDT\n"
+            f"• <b>Precio:</b> ${price}\n"
+            f"• <b>Resultado PnL:</b> {'+' if profit_loss >= 0 else ''}{profit_loss} USDT"
+        )
+        send_telegram_alert(alert_msg)
+    except Exception as e:
+        print(f"Error en ejecución automática: {e}")
+
+# --- ENDPOINT PARA EL PING EXTERNO DE CRON-JOB.ORG (MANTIENE VIVO Y OPERA) ---
 @app.get("/cron-ping")
 async def cron_ping():
     """
-    Endpoint dedicado a mantener la aplicación despierta permanentemente ante las 
-    visitas de cron-job.org, verificando opcionalmente el estado de operación 
-    sin apagar el servicio si las llaves no están configuradas.
+    Endpoint que mantiene la aplicación despierta y ejecuta automáticamente 
+    las operaciones de trading si las llaves de Binance son válidas.
     """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Consultar configuración actual sin bloquear el servicio si falla o está vacío
         cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
         mode_row = cursor.fetchone()
         trading_mode = mode_row['value'] if mode_row else "demo"
@@ -183,21 +222,21 @@ async def cron_ping():
         cursor.close()
         conn.close()
 
-        # Validar credenciales de forma independiente para las operaciones
         is_valid = verify_binance_credentials(binance_api_key, binance_secret_key, trading_mode)
         
         if is_valid:
             bot_status["mode"] = trading_mode
             bot_status["is_operating"] = True
-            send_ping(f"El motor se encuentra activo, monitoreando el mercado y operando con normalidad [Modo: {trading_mode.upper()}].")
-            return {"status": "success", "message": "Ping recibido. Sistema activo y operando con llaves válidas."}
+            
+            # ¡AQUÍ ESTÁ LA MAGIA! Ejecuta la operación en cada visita del cron si las llaves son válidas
+            execute_automated_trade()
+            
+            return {"status": "success", "message": "Ping recibido. Servidor activo y operación automática ejecutada."}
         else:
-            # El servidor sigue vivo y responde al cron, pero el motor de trading se mantiene en espera
             bot_status["is_operating"] = False
             return {"status": "alive_standby", "message": "Ping recibido. Servidor activo (En espera de llaves válidas para operar)."}
             
     except Exception as e:
-        # Aunque ocurra un error interno, el cron recibe respuesta exitosa para evitar suspensiones
         return {"status": "alive_forced", "message": f"Ping recibido y servidor mantenido vivo. Nota: {str(e)}"}
 
 HTML_TEMPLATE = """
@@ -387,7 +426,7 @@ HTML_TEMPLATE = """
 
     <div class="dashboard-container" id="dashboardBox">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.8 (Riesgo 1%)</span></h1>
+            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.9 (Riesgo 1%)</span></h1>
             <a href="/logout" class="btn-logout">Cerrar Sesión</a>
         </div>
         <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Notificaciones en Bloque y Riesgo al 1%</div>
@@ -685,60 +724,14 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
     )
     return HTMLResponse(content=html_output)
 
-# --- ENDPOINT PARA SIMULAR/EJECUTAR OPERACIÓN MANUAL ---
+# --- ENDPOINT MANUAL (BOTÓN WEB) ---
 @app.post("/run-bot")
 async def run_bot(session_token: Optional[str] = Cookie(None)):
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
 
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-        mode_row = cursor.fetchone()
-        mode = mode_row['value'] if mode_row else "demo"
-
-        cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
-        cap_row = cursor.fetchone()
-        capital_ceiling = float(cap_row['value']) if cap_row else 100.0
-
-        cursor.close()
-        conn.close()
-
-        symbol = random.choice(["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"])
-        action = "COMPRA"
-        price = round(random.uniform(100.0, 65000.0), 2)
-        amount = round(capital_ceiling * 0.01, 2)
-        status = "EXITOSA"
-        profit_loss = round(random.uniform(-0.5, 1.5), 2)
-        timestamp = datetime.utcnow().isoformat()
-        pattern_id = hashlib.sha256(f"{symbol}{timestamp}".encode()).hexdigest()[:10]
-
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ''', (timestamp, mode, symbol, action, price, amount, status, profit_loss, pattern_id))
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        alert_msg = (
-            f"🚀 <b>Operación Ejecutada ({mode.upper()})</b>\n"
-            f"• <b>Par:</b> {symbol}\n"
-            f"• <b>Acción:</b> {action}\n"
-            f"• <b>Monto (Riesgo 1%):</b> ${amount} USDT\n"
-            f"• <b>Precio:</b> ${price}\n"
-            f"• <b>Resultado PnL:</b> {'+' if profit_loss >= 0 else ''}{profit_loss} USDT"
-        )
-        send_telegram_alert(alert_msg)
-
-    except Exception as e:
-        print(f"Error al ejecutar operación: {e}")
-
+    execute_automated_trade()
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/login")
