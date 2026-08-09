@@ -92,15 +92,11 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
     if not api_key or not secret_key:
         return False
     
-    # 1. Validación rápida para Demo (Evita consultas externas que Render bloquea)
     if mode == "demo":
         return len(api_key) > 20 and len(secret_key) > 20
 
-    # 2. Validación estricta para Live (Handshake con Binance Real)
     base_url = "https://api.binance.com"
     endpoint = "/api/v3/account"
-    
-    # Sincronización de tiempo precisa
     timestamp = int(time.time() * 1000)
     params = f"timestamp={timestamp}"
     
@@ -115,8 +111,6 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
         headers = {"X-MBX-APIKEY": api_key}
         
         response = requests.get(url, headers=headers, timeout=10)
-        
-        # El código 200 confirma que las llaves son correctas y tienen permisos
         return response.status_code == 200
     except Exception as e:
         print(f"Error en validación Live: {e}")
@@ -452,7 +446,6 @@ def evaluate_market_with_ai(pattern_hash: str) -> bool:
     
     if len(recent_ops) >= 3:
         losses_count = sum(1 for op in recent_ops if op['profit_loss'] < 0)
-        # Umbral dinámico autoevolutivo: si hay 2 o más pérdidas recientes, se vuelve más estricto
         if losses_count >= 2:
             return False
             
@@ -548,7 +541,6 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                     </tr>
                 """
 
-    # Handshake real para determinar estado de conexión visual
     is_valid_keys = verify_binance_credentials(binance_api_key, binance_secret_key, trading_mode)
 
     demo_selected = "selected" if trading_mode == "demo" else ""
@@ -737,16 +729,16 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
     mode_row = cursor.fetchone()
     current_mode = mode_row['value'] if mode_row else "demo"
 
-    pattern_hash = "pattern_market_low_volatility"
-    should_trade = evaluate_market_with_ai(pattern_hash)
-    
     cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
     cap_row = cursor.fetchone()
-    max_capital = float(cap_row['value']) if cap_row else 100.0
-    
-    # Reducción estricta del límite de riesgo al 1.0% del capital
-    amount_sim = round(max_capital * 0.01, 2)
-    
+    capital_ceiling = float(cap_row['value']) if cap_row else 100.0
+
+    # Regla estricta de gestión de riesgo: Asignar exactamente el 1% del techo de capital
+    amount_sim = round(capital_ceiling * 0.01, 2)
+
+    pattern_hash = hashlib.sha256(f"BTC/USDT-{time.time()}".encode()).hexdigest()[:16]
+    should_trade = evaluate_market_with_ai(pattern_hash)
+
     if should_trade:
         profit_loss = round(random.uniform(-1.50, 2.50), 2)
         action = "COMPRA BAJO PRECIO"
