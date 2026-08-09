@@ -18,7 +18,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@T
 
 # --- CREDENCIALES DE TELEGRAM SEGURAS (Vía Variables de Entorno) ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = "8536842251"
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8536842251")
 
 # --- ESTADO GLOBAL DE OPERACIÓN Y PING INTELIGENTE ---
 bot_status = {
@@ -743,7 +743,7 @@ async def update_trading_config(trading_mode: str = Form(...), binance_api_key: 
     conn.close()
     return RedirectResponse(url="/", status_code=303)
 
-@app.post("/run-bot")
+@app.api_route("/run-bot", methods=["GET", "POST"])
 async def run_bot(session_token: Optional[str] = Cookie(None)):
     user_email = get_current_user(session_token)
     if not user_email:
