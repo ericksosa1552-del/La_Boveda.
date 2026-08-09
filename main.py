@@ -11,7 +11,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="4.6")
+app = FastAPI(title="La Bóveda", version="4.7")
 
 # URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
@@ -375,7 +375,7 @@ HTML_TEMPLATE = """
 
     <div class="dashboard-container" id="dashboardBox">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.6 (Riesgo 1%)</span></h1>
+            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.7 (Riesgo 1%)</span></h1>
             <a href="/logout" class="btn-logout">Cerrar Sesión</a>
         </div>
         <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Notificaciones en Bloque y Riesgo al 1%</div>
@@ -430,7 +430,10 @@ HTML_TEMPLATE = """
                 <div class="row" style="margin-top: 5px;">
                     <div class="col">
                         <label>Binance API Key</label>
-                        <input type="text" name="binance_api_key" value="{{ binance_api_key }}" placeholder="Tu API Key de Binance">
+                        <div class="password-container">
+                            <input type="password" name="binance_api_key" id="dashApiKey" value="{{ binance_api_key }}" placeholder="Tu API Key de Binance">
+                            <button type="button" class="toggle-password" onclick="togglePassword('dashApiKey', this)">👁️</button>
+                        </div>
                     </div>
                     <div class="col">
                         <label>Binance Secret Key</label>
@@ -778,3 +781,19 @@ async def update_capital(capital: str = Form(...), session_token: Optional[str] 
     cursor.close()
     conn.close()
     return RedirectResponse(url="/?msg=Techo%20de%20capital%20actualizado", status_code=303)
+
+@app.post("/update-trading-config")
+async def update_trading_config(trading_mode: str = Form(...), binance_api_key: str = Form(...), binance_secret_key: str = Form(...), session_token: Optional[str] = Cookie(None)):
+    user_email = get_current_user(session_token)
+    if not user_email:
+        return RedirectResponse(url="/", status_code=303)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE settings SET value = %s WHERE key = 'trading_mode'", (trading_mode,))
+    cursor.execute("UPDATE settings SET value = %s WHERE key = 'binance_api_key'", (binance_api_key,))
+    cursor.execute("UPDATE settings SET value = %s WHERE key = 'binance_secret_key'", (binance_secret_key,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return RedirectResponse(url="/?msg=Configuración%20actualizada", status_code=303)
