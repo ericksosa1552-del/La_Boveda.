@@ -7,7 +7,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="5.0")
+app = FastAPI(title="La Bóveda", version="5.1")
 
 templates = Jinja2Templates(directory="templates")
 
@@ -17,9 +17,11 @@ tz_local = timezone(timedelta(hours=ZONA_HORARIA_OFFSET))
 def obtener_hora_local():
     return datetime.now(tz_local).strftime("%Y-%m-%d %H:%M:%S")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_db_connection():
+    if not DATABASE_URL:
+        raise Exception("DATABASE_URL no está configurada en las variables de entorno de Render.")
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 def init_db():
@@ -52,13 +54,16 @@ def init_db():
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Error conectando a la base de datos al iniciar: {e}")
+        print(f"Aviso de base de datos al iniciar: {e}")
 
 init_db()
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    try:
+        return templates.TemplateResponse("index.html", {"request": request})
+    except Exception as e:
+        return HTMLResponse(content=f"<h3>Error interno renderizando la plantilla:</h3><p>{str(e)}</p>", status_code=500)
 
 @app.post("/api/token")
 async def api_token(data: dict):
@@ -99,27 +104,36 @@ async def configurar_techo(data: dict):
 
 @app.get("/api/estado")
 async def obtener_estado(user_id: Optional[str] = None):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT SUM(profit_loss) as total FROM operations")
-    row_pnl = cursor.fetchone()
-    balance = row_pnl['total'] if row_pnl and row_pnl['total'] is not None else 0.00
-    
-    cursor.execute("SELECT COUNT(*) as count FROM operations")
-    row_ops = cursor.fetchone()
-    ops_activas = row_ops['count'] if row_ops else 0
-    
-    cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
-    row_techo = cursor.fetchone()
-    techo_capital = float(row_techo['value']) if row_techo and row_techo['value'] else 500.00
-    
-    cursor.close()
-    conn.close()
-    
-    return {
-        "activo": True,
-        "balance": balance,
-        "operaciones_activas": ops_activas,
-        "techo_capital": techo_capital
-    }
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT SUM(profit_loss) as total FROM operations")
+        row_pnl = cursor.fetchone()
+        balance = row_pnl['total'] if row_pnl and row_pnl['total'] is not None else 0.00
+        
+        cursor.execute("SELECT COUNT(*) as count FROM operations")
+        row_ops = cursor.fetchone()
+        ops_activas = row_ops['count'] if row_ops else 0
+        
+        cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
+        row_techo = cursor.fetchone()
+        techo_capital = float(row_techo['value']) if row_techo and row_techo['value'] else 500.00
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "activo": True,
+            "balance": balance,
+            "operaciones_activas": ops_activas,
+            "techo_capital": techo_capital
+        }
+    except Exception as e:
+        return {
+            "activo": False,
+            "balance": 0.00,
+            "operaciones_activas": 0,
+            "techo_capital": 500.00,
+            "error": str(e)
+        }
