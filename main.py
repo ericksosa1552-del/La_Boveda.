@@ -7,7 +7,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="5.1")
+app = FastAPI(title="La Bóveda", version="5.2")
 
 templates = Jinja2Templates(directory="templates")
 
@@ -61,7 +61,7 @@ init_db()
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     try:
-        return templates.TemplateResponse("index.html", {"request": request})
+        return templates.TemplateResponse(request, "index.html")
     except Exception as e:
         return HTMLResponse(content=f"<h3>Error interno renderizando la plantilla:</h3><p>{str(e)}</p>", status_code=500)
 
