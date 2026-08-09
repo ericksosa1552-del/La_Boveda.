@@ -20,7 +20,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@T
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = "8536842251"
 
-# --- NUEVO: ESTADO GLOBAL DE OPERACIÓN Y PING INTELIGENTE ---
+# --- ESTADO GLOBAL DE OPERACIÓN Y PING INTELIGENTE ---
 bot_status = {
     "is_operating": False,
     "mode": "demo"
@@ -109,7 +109,6 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool:
-    """Valida credenciales. Modo demo es permisivo, Modo live exige handshake real."""
     if not api_key or not secret_key:
         return False
     
@@ -203,25 +202,13 @@ HTML_TEMPLATE = """
             color: white; border-radius: 6px; box-sizing: border-box; font-size: 14px; margin-bottom: 12px;
         }
 
-        .password-container {
-            position: relative;
-        }
-        .password-container input {
-            padding-right: 40px;
-        }
+        .password-container { position: relative; }
+        .password-container input { padding-right: 40px; }
         .toggle-password {
-            position: absolute;
-            right: 12px;
-            top: 10px;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            color: #9ca3af;
+            position: absolute; right: 12px; top: 10px; background: none;
+            border: none; cursor: pointer; font-size: 16px; color: #9ca3af;
         }
-        .toggle-password:hover {
-            color: white;
-        }
+        .toggle-password:hover { color: white; }
         
         .btn-gold {
             background-color: #fbbf24; color: #111827; border: none; padding: 10px 20px;
@@ -259,17 +246,13 @@ HTML_TEMPLATE = """
         }
 
         .table-container {
-            max-height: 280px;
-            overflow-y: auto;
-            border: 1px solid #374151;
-            border-radius: 8px;
-            background-color: #111827;
+            max-height: 280px; overflow-y: auto; border: 1px solid #374151;
+            border-radius: 8px; background-color: #111827;
         }
         
         .table-container::-webkit-scrollbar { width: 8px; }
         .table-container::-webkit-scrollbar-track { background: #111827; border-radius: 8px; }
         .table-container::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 8px; }
-        .table-container::-webkit-scrollbar-thumb:hover { background: #6b7280; }
 
         table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0; }
         th { text-align: left; color: #9ca3af; padding: 10px; border-bottom: 1px solid #374151; font-size: 11px; text-transform: uppercase; position: sticky; top: 0; background-color: #1f2937; z-index: 1; }
@@ -380,7 +363,6 @@ HTML_TEMPLATE = """
             </form>
         </div>
 
-        <!-- CONFIGURACIÓN DE TRADING Y CAMBIO DE MODO -->
         <div class="card">
             <form action="/update-trading-config" method="post">
                 <label style="color: #fbbf24; margin-bottom: 10px; font-size: 13px;">⚙️ Configuración de Operación (Demo vs Live)</label>
@@ -493,20 +475,6 @@ HTML_TEMPLATE = """
 </html>
 """
 
-def evaluate_market_with_ai(pattern_hash: str) -> bool:
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT profit_loss FROM operations ORDER BY id DESC LIMIT 5")
-    recent_ops = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    
-    if len(recent_ops) >= 3:
-        losses_count = sum(1 for op in recent_ops if op['profit_loss'] < 0)
-        if losses_count >= 2:
-            return False
-    return True
-
 def get_current_user(session_token: Optional[str]) -> Optional[str]:
     if not session_token:
         return None
@@ -599,7 +567,6 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
 
     is_valid_keys = verify_binance_credentials(binance_api_key, binance_secret_key, trading_mode)
 
-    # --- ACTUALIZACIÓN AUTOMÁTICA DEL ESTADO DEL PING SEGÚN VALIDACIÓN Y MODO ---
     if is_valid_keys:
         bot_status["mode"] = trading_mode
         bot_status["is_operating"] = True
@@ -739,3 +706,80 @@ async def recovery(email: str = Form(...), new_password: str = Form(...)):
     conn.close()
 
     return RedirectResponse(url="/?msg=Contraseña%20restablecida%20con%20éxito.%20Ya%20puede%20ingresar", status_code=303)
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie(key="session_token")
+    return response
+
+@app.post("/update-capital")
+async def update_capital(capital: str = Form(...), session_token: Optional[str] = Cookie(None)):
+    user_email = get_current_user(session_token)
+    if not user_email:
+        return RedirectResponse(url="/", status_code=303)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE settings SET value = %s WHERE key = 'capital_ceiling'", (capital,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/update-trading-config")
+async def update_trading_config(trading_mode: str = Form(...), binance_api_key: str = Form(...), binance_secret_key: str = Form(...), session_token: Optional[str] = Cookie(None)):
+    user_email = get_current_user(session_token)
+    if not user_email:
+        return RedirectResponse(url="/", status_code=303)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE settings SET value = %s WHERE key = 'trading_mode'", (trading_mode,))
+    cursor.execute("UPDATE settings SET value = %s WHERE key = 'binance_api_key'", (binance_api_key,))
+    cursor.execute("UPDATE settings SET value = %s WHERE key = 'binance_secret_key'", (binance_secret_key,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/run-bot")
+async def run_bot(session_token: Optional[str] = Cookie(None)):
+    user_email = get_current_user(session_token)
+    if not user_email:
+        return RedirectResponse(url="/", status_code=303)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+    mode_row = cursor.fetchone()
+    mode = mode_row['value'] if mode_row else "demo"
+
+    cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
+    cap_row = cursor.fetchone()
+    ceiling = float(cap_row['value']) if cap_row else 100.0
+    cursor.close()
+    conn.close()
+
+    # Simulación de operación basada en riesgo del 1%
+    symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+    chosen_symbol = random.choice(symbols)
+    action = "BUY"
+    price = round(random.uniform(100, 30000), 2)
+    amount = round(ceiling * 0.01, 2)  # 1% del techo de capital
+    profit_loss = round(random.uniform(-0.5, 1.2), 2)
+    status = "SUCCESS" if profit_loss >= 0 else "CLOSED_LOSS"
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ''', (datetime.utcnow().isoformat(), mode, chosen_symbol, action, price, amount, status, profit_loss, "pattern_auto"))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    send_ping(f"Operación ejecutada en {chosen_symbol} por {amount} USDT con PnL de {profit_loss} USDT.")
+
+    return RedirectResponse(url="/", status_code=303)
