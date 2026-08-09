@@ -4,7 +4,6 @@ import hashlib
 import os
 import hmac
 import time
-import threading
 from datetime import datetime
 from fastapi import FastAPI, Request, Form, Response, Cookie
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -12,7 +11,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="4.4")
+app = FastAPI(title="La Bóveda", version="4.6")
 
 # URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
@@ -21,17 +20,35 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@T
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8536842251")
 
-# --- ESTADO GLOBAL DE OPERACIÓN Y PING INTELIGENTE ---
+# --- ESTADO GLOBAL DE OPERACIÓN ---
 bot_status = {
     "is_operating": False,
     "mode": "demo"
 }
 
 def send_telegram_alert(message: str):
+    """
+    Formato de notificación optimizado con diseño de bloques, separadores y énfasis visual[cite: 1].
+    """
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
+    
+    # Formato visual tipo "Dashboard" en Telegram[cite: 1]
+    formatted_message = (
+        f"📊 <b>LA BÓVEDA | Reporte de Sistema</b>\n"
+        f"────────────────────────\n"
+        f"{message}\n"
+        f"────────────────────────\n"
+        f"🕒 <i>{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</i>\n"
+        f"⚙️ <i>Estado: En línea</i>"
+    )
+    
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID, 
+        "text": formatted_message, 
+        "parse_mode": "HTML"
+    }
     try:
         requests.post(url, json=payload, timeout=5)
     except Exception:
@@ -40,17 +57,8 @@ def send_telegram_alert(message: str):
 def send_ping(message: str):
     """Envía el ping o latido únicamente si el bot se encuentra operando activamente."""
     if bot_status["is_operating"]:
-        send_telegram_alert(f"🟢 *Ping de Monitoreo [Modo: {bot_status['mode'].upper()}]:* {message}")
-
-def background_ping_loop():
-    """Hilo en segundo plano que revisa y envía un ping de latido cada 10 minutos."""
-    while True:
-        time.sleep(600)  # 600 segundos = 10 minutos
-        if bot_status["is_operating"]:
-            send_ping("El motor se encuentra activo, monitoreando el mercado y operando con normalidad bajo el riesgo del 1%.")
-
-# Iniciamos el hilo automático en segundo plano al arrancar la app
-threading.Thread(target=background_ping_loop, daemon=True).start()
+        msg = f"🟢 <b>Status Activo</b>\n{message}"
+        send_telegram_alert(msg)
 
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
@@ -146,7 +154,40 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
     except Exception as e:
         print(f"Error en validación Live: {e}")
         return False
-        
+
+# --- ENDPOINT PARA EL PING EXTERNO DE CRON-JOB.ORG ---
+@app.get("/cron-ping")
+async def cron_ping():
+    """Endpoint optimizado para recibir la visita de cron-job.org, verificar base de datos y emitir latido."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+        mode_row = cursor.fetchone()
+        trading_mode = mode_row['value'] if mode_row else "demo"
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
+        ak_row = cursor.fetchone()
+        binance_api_key = ak_row['value'] if ak_row else ""
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
+        sk_row = cursor.fetchone()
+        binance_secret_key = sk_row['value'] if sk_row else ""
+        cursor.close()
+        conn.close()
+
+        is_valid = verify_binance_credentials(binance_api_key, binance_secret_key, trading_mode)
+        if is_valid:
+            bot_status["mode"] = trading_mode
+            bot_status["is_operating"] = True
+            send_ping(f"El motor se encuentra activo, monitoreando el mercado y operando con normalidad [Modo: {trading_mode.upper()}].")
+            return {"status": "success", "message": "Ping enviado correctamente a Telegram."}
+        else:
+            bot_status["is_operating"] = False
+            return {"status": "idle", "message": "Motor inactivo: credenciales no válidas o vacías."}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="es">
@@ -334,10 +375,10 @@ HTML_TEMPLATE = """
 
     <div class="dashboard-container" id="dashboardBox">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.4 (Riesgo 1%)</span></h1>
+            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v4.6 (Riesgo 1%)</span></h1>
             <a href="/logout" class="btn-logout">Cerrar Sesión</a>
         </div>
-        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Ping cada 10 min y Riesgo al 1%</div>
+        <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Notificaciones en Bloque y Riesgo al 1%</div>
         
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -736,61 +777,4 @@ async def update_capital(capital: str = Form(...), session_token: Optional[str] 
     conn.commit()
     cursor.close()
     conn.close()
-    return RedirectResponse(url="/", status_code=303)
-
-@app.post("/update-trading-config")
-async def update_trading_config(trading_mode: str = Form(...), binance_api_key: str = Form(...), binance_secret_key: str = Form(...), session_token: Optional[str] = Cookie(None)):
-    user_email = get_current_user(session_token)
-    if not user_email:
-        return RedirectResponse(url="/", status_code=303)
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE settings SET value = %s WHERE key = 'trading_mode'", (trading_mode,))
-    cursor.execute("UPDATE settings SET value = %s WHERE key = 'binance_api_key'", (binance_api_key,))
-    cursor.execute("UPDATE settings SET value = %s WHERE key = 'binance_secret_key'", (binance_secret_key,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return RedirectResponse(url="/", status_code=303)
-
-@app.api_route("/run-bot", methods=["GET", "POST"])
-async def run_bot(session_token: Optional[str] = Cookie(None)):
-    user_email = get_current_user(session_token)
-    if not user_email:
-        return RedirectResponse(url="/", status_code=303)
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-    mode_row = cursor.fetchone()
-    mode = mode_row['value'] if mode_row else "demo"
-
-    cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
-    cap_row = cursor.fetchone()
-    ceiling = float(cap_row['value']) if cap_row else 100.0
-    cursor.close()
-    conn.close()
-
-    # Simulación de operación basada en riesgo del 1%
-    symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
-    chosen_symbol = random.choice(symbols)
-    action = "BUY"
-    price = round(random.uniform(100, 30000), 2)
-    amount = round(ceiling * 0.01, 2)  # 1% del techo de capital
-    profit_loss = round(random.uniform(-0.5, 1.2), 2)
-    status = "SUCCESS" if profit_loss >= 0 else "CLOSED_LOSS"
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    ''', (datetime.utcnow().isoformat(), mode, chosen_symbol, action, price, amount, status, profit_loss, "pattern_auto"))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    send_ping(f"Operación ejecutada en {chosen_symbol} por {amount} USDT con PnL de {profit_loss} USDT.")
-
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/?msg=Techo%20de%20capital%20actualizado", status_code=303)
