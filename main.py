@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
@@ -10,7 +10,7 @@ from psycopg2.extras import RealDictCursor
 
 app = FastAPI(title="La Bóveda", version="5.0")
 
-# Definir la ruta absoluta para que Render encuentre la carpeta templates siempre
+# Definir la ruta absoluta para la carpeta templates
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -71,7 +71,7 @@ async def api_token(data: dict):
     mode = data.get("mode")
     
     if not user_id or not api_key or not api_secret:
-        return {"detail": "Faltan datos obligatorios"}, 400
+        raise HTTPException(status_code=400, detail="Faltan datos obligatorios")
         
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -89,7 +89,7 @@ async def configurar_techo(data: dict):
     techo_capital = data.get("techo_capital")
     
     if techo_capital is None:
-        return {"detail": "Techo de capital no válido"}, 400
+        raise HTTPException(status_code=400, detail="Techo de capital no válido")
         
     conn = get_db_connection()
     cursor = conn.cursor()
