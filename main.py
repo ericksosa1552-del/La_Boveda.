@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
@@ -10,9 +9,8 @@ from psycopg2.extras import RealDictCursor
 
 app = FastAPI(title="La Bóveda", version="5.0")
 
-# Definir la ruta absoluta para la carpeta templates
-BASE_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+# Carga directa de la carpeta templates (compatible con Render)
+templates = Jinja2Templates(directory="templates")
 
 ZONA_HORARIA_OFFSET = -6  
 tz_local = timezone(timedelta(hours=ZONA_HORARIA_OFFSET))
