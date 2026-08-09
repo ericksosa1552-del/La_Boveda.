@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>La Bóveda - Panel de Control</title>
-    <!-- Tailwind CSS para un diseño limpio y moderno -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
 <body class="bg-gray-900 text-white font-sans antialiased min-h-screen flex flex-col items-center justify-center p-4">
@@ -17,19 +16,19 @@
             <p class="text-xs text-gray-400 mt-1">Panel de Control y Gestión de Riesgo</p>
         </div>
 
-        <!-- Sección de Estado de Conexión -->
+        <!-- Sección de Estado -->
         <div class="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
             <div class="flex justify-between items-center mb-2">
                 <span class="text-sm text-gray-400">Estado:</span>
-                <span id="estadoConexion" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-900 text-yellow-300">Cargando...</span>
+                <span id="estadoConexion" class="text-xs font-semibold px-2.5 py-1 rounded-full bg-yellow-900 text-yellow-300">Esperando...</span>
             </div>
             <div class="flex justify-between items-center mb-2">
-                <span class="text-sm text-gray-400">Balance Disponible:</span>
+                <span class="text-sm text-gray-400">Balance:</span>
                 <span id="balanceTotal" class="text-lg font-bold text-green-400">0.00 USDT</span>
             </div>
         </div>
 
-        <!-- Métricas de Operaciones y Techo -->
+        <!-- Métricas -->
         <div class="grid grid-cols-2 gap-3 mb-6">
             <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
                 <span class="text-gray-400 text-xs">Techo Actual</span>
@@ -41,62 +40,44 @@
             </div>
         </div>
 
-        <!-- Formulario de Configuración de Techo Dinámico -->
+        <!-- Formulario de Techo -->
         <div class="mb-6 bg-gray-900 p-4 rounded-xl border border-gray-700">
             <h3 class="text-sm font-semibold text-gray-300 mb-1">Ajustar Capital Operativo</h3>
-            <p class="text-xs text-gray-500 mb-3">Máximo permitido por seguridad: 500 USDT.</p>
-            
             <div class="flex space-x-2">
-                <input type="number" id="inputTecho" max="500" min="1" placeholder="Ej. 300" 
-                       class="bg-gray-800 text-white text-sm px-3 py-2 rounded-lg w-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button onclick="guardarTecho()" 
-                        class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition cursor-pointer">
-                    Guardar
-                </button>
+                <input type="number" id="inputTecho" max="500" min="1" placeholder="Ej. 300" class="bg-gray-800 text-white text-sm px-3 py-2 rounded-lg w-full border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="guardarTecho()" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition cursor-pointer">Guardar</button>
             </div>
             <p id="mensajeTecho" class="text-xs mt-2 text-center h-4"></p>
         </div>
 
-        <!-- Sección de Configuración de Credenciales API -->
+        <!-- Credenciales -->
         <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
             <h3 class="text-sm font-semibold text-gray-300 mb-3">Credenciales de Binance</h3>
-            
             <div class="space-y-3">
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Correo / Usuario ID</label>
-                    <input type="text" id="userId" placeholder="tu_correo@dominio.com" 
-                           class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="userId" placeholder="Correo / ID" class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700">
+                <input type="text" id="apiKey" placeholder="API Key" class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700">
+                
+                <div class="relative">
+                    <input type="password" id="apiSecret" placeholder="API Secret" class="w-full bg-gray-800 text-sm text-white px-3 py-2 pr-10 rounded-lg border border-gray-700">
+                    <button type="button" onclick="togglePassword()" class="absolute right-3 top-2 text-gray-500 hover:text-white">👁️</button>
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">API Key</label>
-                    <input type="text" id="apiKey" placeholder="Ingresa tu API Key" 
-                           class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">API Secret</label>
-                    <input type="password" id="apiSecret" placeholder="Ingresa tu API Secret" 
-                           class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-xs text-gray-400 mb-1">Modo de Operación</label>
-                    <select id="modeSelect" class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        <option value="testnet">Testnet (Pruebas)</option>
-                        <option value="mainnet">Mainnet (Real)</option>
-                    </select>
-                </div>
-                <button onclick="guardarCredenciales()" 
-                        class="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-lg font-medium transition cursor-pointer mt-2">
-                    Vincular y Guardar
-                </button>
+
+                <select id="modeSelect" class="w-full bg-gray-800 text-sm text-white px-3 py-2 rounded-lg border border-gray-700">
+                    <option value="testnet">Testnet (Pruebas)</option>
+                    <option value="mainnet">Mainnet (Real)</option>
+                </select>
+                <button onclick="guardarCredenciales()" class="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-lg font-medium transition cursor-pointer mt-2">Vincular y Guardar</button>
             </div>
             <p id="mensajeCredenciales" class="text-xs mt-2 text-center h-4"></p>
         </div>
-
     </div>
 
-    <!-- Script de Automatización y Control -->
     <script>
-        // Función para guardar credenciales en el backend
+        function togglePassword() {
+            const input = document.getElementById('apiSecret');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+
         async function guardarCredenciales() {
             const userId = document.getElementById('userId').value.trim();
             const apiKey = document.getElementById('apiKey').value.trim();
@@ -105,13 +86,9 @@
             const msgEl = document.getElementById('mensajeCredenciales');
 
             if (!userId || !apiKey || !apiSecret) {
-                msgEl.style.color = "#f87171";
                 msgEl.innerText = "Por favor completa todos los campos.";
                 return;
             }
-
-            // Guardar el user_id en el almacenamiento local del navegador para futuras peticiones
-            localStorage.setItem('user_id', userId);
 
             try {
                 const response = await fetch('/api/token', {
@@ -120,41 +97,28 @@
                     body: JSON.stringify({ user_id: userId, api_key: apiKey, api_secret: apiSecret, mode: mode })
                 });
 
+                const data = await response.json();
                 if (response.ok) {
+                    localStorage.setItem('user_id', userId);
                     msgEl.style.color = "#4ade80";
-                    msgEl.innerText = "¡Credenciales guardadas con éxito!";
-                    consultarEstadoCuenta(); // Refrescar métricas de inmediato
+                    msgEl.innerText = "¡Vinculado con éxito!";
                 } else {
                     msgEl.style.color = "#f87171";
-                    msgEl.innerText = "Error al guardar credenciales.";
+                    msgEl.innerText = data.detail || "Error al vincular.";
                 }
             } catch (error) {
                 msgEl.style.color = "#f87171";
-                msgEl.innerText = "Error de conexión con el servidor.";
+                msgEl.innerText = "Error de conexión.";
             }
         }
 
-        // Función para guardar el techo de capital
         async function guardarTecho() {
+            const userId = localStorage.getItem('user_id');
             const nuevoTecho = parseFloat(document.getElementById('inputTecho').value);
             const msgEl = document.getElementById('mensajeTecho');
-            const userId = localStorage.getItem('user_id');
 
             if (!userId) {
-                msgEl.style.color = "#f87171";
-                msgEl.innerText = "Primero ingresa tu correo en la sección de abajo.";
-                return;
-            }
-
-            if (isNaN(nuevoTecho) || nuevoTecho <= 0) {
-                msgEl.style.color = "#f87171";
-                msgEl.innerText = "Ingresa un valor válido mayor a 0.";
-                return;
-            }
-
-            if (nuevoTecho > 500) {
-                msgEl.style.color = "#f87171";
-                msgEl.innerText = "Límite superado: Máximo 500 USDT permitidos.";
+                msgEl.innerText = "Primero vincula tu usuario.";
                 return;
             }
 
@@ -165,64 +129,18 @@
                     body: JSON.stringify({ user_id: userId, techo_capital: nuevoTecho })
                 });
 
-                const data = await response.json();
-
                 if (response.ok) {
-                    msgEl.style.color = "#4ade80";
-                    msgEl.innerText = data.message;
                     document.getElementById('displayTecho').innerText = nuevoTecho.toFixed(2) + " USDT";
+                    msgEl.style.color = "#4ade80";
+                    msgEl.innerText = "Techo actualizado.";
                 } else {
                     msgEl.style.color = "#f87171";
-                    msgEl.innerText = data.detail || "Error al actualizar techo.";
+                    msgEl.innerText = "Error al actualizar.";
                 }
             } catch (error) {
-                msgEl.style.color = "#f87171";
                 msgEl.innerText = "Error de conexión.";
             }
         }
-
-        // Función para consultar dinámicamente el estado de cuenta y métricas en tiempo real
-        async function consultarEstadoCuenta() {
-            const userId = localStorage.getItem('user_id');
-            if (!userId) return;
-
-            try {
-                const response = await fetch(`/api/estado-cuenta/${userId}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    // Actualizar Balance
-                    document.getElementById('balanceTotal').innerText = data.balance_total;
-                    
-                    // Actualizar Operaciones Activas
-                    document.getElementById('displayOperaciones').innerText = data.operaciones_activas;
-                    
-                    // Actualizar Techo Actual
-                    if (data.techo_capital) {
-                        document.getElementById('displayTecho').innerText = data.techo_capital.toFixed(2) + " USDT";
-                    }
-
-                    // Actualizar Badge de Estado
-                    const estadoEl = document.getElementById('estadoConexion');
-                    estadoEl.innerText = data.status;
-                    if (data.status.includes("Conectado")) {
-                        estadoEl.className = "text-xs font-semibold px-2.5 py-1 rounded-full bg-green-900 text-green-300";
-                    } else {
-                        estadoEl.className = "text-xs font-semibold px-2.5 py-1 rounded-full bg-red-900 text-red-300";
-                    }
-                }
-            } catch (error) {
-                console.error("No se pudo obtener el estado de cuenta:", error);
-            }
-        }
-
-        // Ejecutar la consulta automáticamente cada 10 segundos si hay un usuario registrado
-        setInterval(() => {
-            const userId = localStorage.getItem('user_id');
-            if (userId) {
-                consultarEstadoCuenta();
-            }
-        }, 10000);
     </script>
 </body>
 </html>
