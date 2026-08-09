@@ -16,8 +16,8 @@ app = FastAPI(title="La Bóveda", version="4.3")
 # URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
 
-# Tus credenciales directas de Telegram
-TELEGRAM_BOT_TOKEN = "8610300157:AAG86zeR58BF-o42_ZyyJPYneZf3uzmBxes"
+# --- CREDENCIALES DE TELEGRAM SEGURAS (Vía Variables de Entorno) ---
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = "8536842251"
 
 # --- NUEVO: ESTADO GLOBAL DE OPERACIÓN Y PING INTELIGENTE ---
@@ -738,110 +738,4 @@ async def recovery(email: str = Form(...), new_password: str = Form(...)):
     cursor.close()
     conn.close()
 
-    return RedirectResponse(url="/?msg=Contraseña%20restablecida%20con%20éxito.%20Ya%20puede%20ingresar.", status_code=303)
-
-@app.get("/logout")
-async def logout(session_token: Optional[str] = Cookie(None)):
-    # Al cerrar sesión, pausamos también el ping por seguridad
-    bot_status["is_operating"] = False
-    if session_token:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM sessions WHERE session_token = %s", (session_token,))
-        conn.commit()
-        cursor.close()
-        conn.close()
-    
-    response = RedirectResponse(url="/", status_code=303)
-    response.delete_cookie(key="session_token")
-    return response
-
-@app.post("/update-capital")
-async def update_capital(capital: str = Form(...), session_token: Optional[str] = Cookie(None)):
-    if not get_current_user(session_token):
-        return RedirectResponse(url="/", status_code=303)
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (capital,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return RedirectResponse(url="/", status_code=303)
-
-# --- NUEVA RUTA ACTUALIZADA PARA GESTIONAR CAMBIO DE MODO Y DETENER/ACTIVAR PING ---
-@app.post("/update-trading-config")
-async def update_trading_config(
-    trading_mode: str = Form(...), 
-    binance_api_key: str = Form(...), 
-    binance_secret_key: str = Form(...), 
-    session_token: Optional[str] = Cookie(None)
-):
-    if not get_current_user(session_token):
-        return RedirectResponse(url="/", status_code=303)
-    
-    # 1. Al cambiar configuración o modo, detenemos temporalmente el ping de forma preventiva
-    bot_status["is_operating"] = False
-    send_telegram_alert("⚠️ *Aviso de La Bóveda:* Se ha solicitado un cambio de configuración/modo. Pausando temporalmente el ping de control.")
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (trading_mode,))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_api_key.strip(),))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (binance_secret_key.strip(),))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    # 2. Validamos de inmediato las credenciales para el nuevo modo
-    is_valid = verify_binance_credentials(binance_api_key.strip(), binance_secret_key.strip(), trading_mode)
-
-    if is_valid:
-        # Si son válidas, activamos el estado operativo y el ping se reactiva solo para el nuevo modo
-        bot_status["mode"] = trading_mode
-        bot_status["is_operating"] = True
-        send_ping(f"Configuración actualizada con éxito. Motor operando en modo *{trading_mode.upper()}*.")
-        return RedirectResponse(url="/?msg=Configuracion%20actualizada%20y%20llaves%20validadas%20correctamente", status_code=303)
-    else:
-        # Si fallan, el bot se queda inactivo y se notifica el error
-        send_telegram_alert(f"❌ *Error crítico:* Las llaves proporcionadas para el modo *{trading_mode.upper()}* no pasaron la validación. El motor y el ping permanecen detenidos.")
-        return RedirectResponse(url="/?msg=Las%20llaves%20de%20Binance%20son%20invalidas%20para%20el%20modo%20seleccionado", status_code=303)
-
-@app.post("/run-bot")
-async def run_bot(session_token: Optional[str] = Cookie(None)):
-    if not get_current_user(session_token):
-        return RedirectResponse(url="/", status_code=303)
-    
-    # Verificación de seguridad antes de ejecutar operación
-    if not bot_status["is_operating"]:
-        return RedirectResponse(url="/?msg=El%20motor%20esta%20detenido%20o%20las%20llaves%20no%20estan%20validadas", status_code=303)
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-    mode_row = cursor.fetchone()
-    current_mode = mode_row['value'] if mode_row else "demo"
-
-    # Simulación de operación de oportunidad protegida con IA y riesgo al 1%
-    symbol = "BTCUSDT"
-    action = "BUY"
-    amount = 1.00 # 1% del capital base de prueba
-    price = round(random.uniform(60000.0, 68000.0), 2)
-    pattern_hash = hashlib.sha256(f"{price}{datetime.utcnow()}".encode()).hexdigest()[:10]
-
-    ai_approved = evaluate_market_with_ai(pattern_hash)
-    status = "COMPLETED" if ai_approved else "BLOCKED_BY_AI"
-    profit_loss = round(random.uniform(-0.50, 1.20), 2) if ai_approved else 0.00
-
-    cursor.execute('''
-        INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-    ''', (datetime.utcnow().isoformat(), current_mode, symbol, action, price, amount, status, profit_loss, pattern_hash))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    # Disparamos un ping informativo tras la operación si todo marcha bien
-    send_ping(f"Operación ejecutada en {symbol} ({action}) bajo modo {current_mode.upper()}. PnL: {profit_loss} USDT")
-
-    return RedirectResponse(url="/?msg=Simulacion%20ejecutada%20exitosamente", status_code=303)
+    return RedirectResponse(url="/?msg=Contraseña%20restablecida%20con%20éxito.%20Ya%20puede%20ingresar", status_code=303)
