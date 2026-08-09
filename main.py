@@ -46,7 +46,7 @@ def send_telegram_alert(message: str):
     """
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
-    
+     
     formatted_message = (
         f"📊 <b>LA BÓVEDA | Reporte de Sistema</b>\n"
         f"────────────────────────\n"
@@ -55,7 +55,7 @@ def send_telegram_alert(message: str):
         f"🕒 <i>{obtener_hora_local()}</i>\n"
         f"⚙️ <i>Estado: En línea</i>"
     )
-    
+     
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID, 
@@ -73,7 +73,7 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS operations (
             id SERIAL PRIMARY KEY,
@@ -100,7 +100,9 @@ def init_db():
     cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', '') ON CONFLICT (key) DO NOTHING")
     # Configuración inicial para el Kill Switch (apagado de emergencia por defecto en False)
     cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', 'false') ON CONFLICT (key) DO NOTHING")
-    
+    # Configuración para la cuenta secundaria o email de subcuenta de Binance
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', '') ON CONFLICT (key) DO NOTHING")
+     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ai_learning_memory (
             id SERIAL PRIMARY KEY,
@@ -149,7 +151,7 @@ def hash_password(password: str) -> str:
 def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool:
     if not api_key or not secret_key:
         return False
-    
+     
     if mode == "demo":
         return len(api_key) > 20 and len(secret_key) > 20
 
@@ -157,29 +159,74 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
     endpoint = "/api/v3/account"
     timestamp = int(time.time() * 1000)
     params = f"timestamp={timestamp}"
-    
+     
     try:
         signature = hmac.new(
             secret_key.encode('utf-8'),
             params.encode('utf-8'),
             hashlib.sha256
         ).hexdigest()
-        
+         
         url = f"{base_url}{endpoint}?{params}&signature={signature}"
         headers = {"X-MBX-APIKEY": api_key}
-        
+         
         response = requests.get(url, headers=headers, timeout=10)
         return response.status_code == 200
     except Exception as e:
         print(f"Error en validación Live: {e}")
         return False
 
+def transfer_profits_to_secondary(api_key: str, secret_key: str, subaccount_email: str, amount_usdt: float, mode: str):
+    """
+    Realiza la transferencia universal en Binance hacia la cuenta secundaria / subcuenta
+    o simula la acción si el sistema está en entorno DEMO.
+    """
+    if mode == "demo":
+        # Simulación exitosa para entorno de pruebas Testnet/Demo
+        return True, f"Simulación exitosa: Se aseguraron {amount_usdt} USDT en la cuenta secundaria."
+
+    if not subaccount_email or not api_key or not secret_key:
+        return False, "Faltan credenciales o correo de la subcuenta secundaria."
+
+    base_url = "https://api.binance.com"
+    endpoint = "/sapi/v1/sub-account/universalTransfer"
+    timestamp = int(time.time() * 1000)
+    
+    params = {
+        "toAccountType": "SUB_ACCOUNT",
+        "toEmail": subaccount_email,
+        "asset": "USDT",
+        "amount": f"{amount_usdt:.2f}",
+        "timestamp": timestamp
+    }
+    
+    query_string = '&'.join([f"{key}={value}" for key, value in params.items()])
+    
+    try:
+        signature = hmac.new(
+            secret_key.encode('utf-8'),
+            query_string.encode('utf-8'),
+            hashlib.sha256
+        ).hexdigest()
+        
+        url = f"{base_url}{endpoint}?{query_string}&signature={signature}"
+        headers = {"X-MBX-APIKEY": api_key}
+        
+        response = requests.post(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            return True, "Transferencia universal completada con éxito."
+        else:
+            err_data = response.json()
+            return False, f"Error Binance: {err_data.get('msg', 'Desconocido')}"
+    except Exception as e:
+        return False, f"Excepción de red al transferir: {str(e)}"
+
 def execute_automated_trade():
     """Función interna que ejecuta la lógica de compra automática con riesgo del 1%, PnL separado, registro de razonamiento y validación de Kill Switch."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+         
         # Verificar estado del Kill Switch de emergencia
         cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
         es_row = cursor.fetchone()
@@ -205,20 +252,20 @@ def execute_automated_trade():
             {"simbolo": "SOLUSDT", "nombre_precio": "Precio SOL", "precio_base": 184.50},
             {"simbolo": "BNBUSDT", "nombre_precio": "Precio BNB", "precio_base": 580.20}
         ]
-        
+         
         par_seleccionado = random.choice(pares_disponibles)
         symbol = par_seleccionado["simbolo"]
         etiqueta_precio = par_seleccionado["nombre_precio"]
-        
+         
         action = "COMPRA"
         price = par_seleccionado["precio_base"] + round(random.uniform(-5.0, 5.0), 2)
-        
+         
         # Riesgo estricto del 1% para la entrada/monto invertido
         amount = round(capital_ceiling * 0.01, 2)
-        
+         
         # Lógica de PnL: ganancias atractivas (+3 a +6) o pérdidas controladas (-0.10 a -0.50)
         es_ganancia = random.choice([True, False, True])
-        
+         
         if es_ganancia:
             profit_loss = round(random.uniform(3.00, 6.00), 2)
             status = "EXITOSA"
@@ -235,19 +282,19 @@ def execute_automated_trade():
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+         
         # Guardar operación
         cursor.execute('''
             INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (timestamp, mode, symbol, action, price, amount, status, profit_loss, pattern_id))
-        
+         
         # Guardar registro del razonamiento de la IA
         cursor.execute('''
             INSERT INTO ai_reasoning_logs (timestamp, symbol, decision_context, confidence_score)
             VALUES (%s, %s, %s, %s)
         ''', (timestamp, symbol, decision_context, confidence_score))
-        
+         
         conn.commit()
         cursor.close()
         conn.close()
@@ -274,7 +321,7 @@ async def cron_ping():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+         
         cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
         es_row = cursor.fetchone()
         if es_row and es_row['value'].lower() == 'true':
@@ -293,23 +340,23 @@ async def cron_ping():
         cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
         sk_row = cursor.fetchone()
         binance_secret_key = sk_row['value'] if sk_row else ""
-        
+         
         cursor.close()
         conn.close()
 
         is_valid = verify_binance_credentials(binance_api_key, binance_secret_key, trading_mode)
-        
+         
         if is_valid:
             bot_status["mode"] = trading_mode
             bot_status["is_operating"] = True
-            
+             
             execute_automated_trade()
-            
+             
             return {"status": "success", "message": "Ping recibido. Servidor activo y operación automática ejecutada."}
         else:
             bot_status["is_operating"] = False
             return {"status": "alive_standby", "message": "Ping recibido. Servidor activo (En espera de llaves válidas para operar)."}
-            
+             
     except Exception as e:
         return {"status": "alive_forced", "message": f"Ping recibido y servidor mantenido vivo. Nota: {str(e)}"}
 
@@ -327,13 +374,13 @@ def get_current_user(session_token: Optional[str]) -> Optional[str]:
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, session_token: Optional[str] = Cookie(None), msg: str = "", active_tab: str = "login"):
     user_email = get_current_user(session_token)
-    
+     
     body_align = "center"
     auth_position = "absolute"
     auth_display = "block"
     dashboard_display = "none"
     alert_display = "block" if msg else "none"
-    
+     
     login_tab_active = "active" if active_tab == "login" else ""
     register_tab_active = "active" if active_tab == "register" else ""
     login_section_active = "active" if active_tab == "login" else ""
@@ -347,6 +394,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
     binance_api_key = ""
     binance_secret_key = ""
     emergency_stop = "false"
+    secondary_email = ""
     rows_html = "<tr><td colspan='4' style='text-align: center; color: #6b7280;'>No hay operaciones registradas aún. Presiona simular.</td></tr>"
 
     chart_labels_list = ["Inicio"]
@@ -361,12 +409,12 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
 
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+         
         cursor.execute("SELECT COUNT(*), SUM(profit_loss) FROM operations")
         row_stats = cursor.fetchone()
         total_ops = row_stats['count'] if row_stats and row_stats['count'] is not None else 0
         total_pnl = round(row_stats['sum'], 2) if row_stats and row_stats['sum'] is not None else 0.00
-        
+         
         cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
         cap_row = cursor.fetchone()
         capital_ceiling = cap_row['value'] if cap_row else "100.0"
@@ -386,13 +434,17 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
         es_row = cursor.fetchone()
         emergency_stop = es_row['value'] if es_row else "false"
-        
+
+        cursor.execute("SELECT value FROM settings WHERE key = 'secondary_subaccount_email'")
+        sec_row = cursor.fetchone()
+        secondary_email = sec_row['value'] if sec_row else ""
+         
         cursor.execute("SELECT timestamp, symbol, action, amount, status, profit_loss FROM operations ORDER BY id ASC")
         ops_all = cursor.fetchall()
-        
+         
         cursor.execute("SELECT symbol, action, amount, status, profit_loss FROM operations ORDER BY id DESC LIMIT 200")
         ops = cursor.fetchall()
-        
+         
         cursor.close()
         conn.close()
 
@@ -400,7 +452,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         current_balance = float(capital_ceiling)
         chart_labels_list = ["Base"]
         chart_data_list = [round(current_balance, 2)]
-        
+         
         if ops_all:
             for idx, op in enumerate(ops_all):
                 current_balance += op['profit_loss']
@@ -485,6 +537,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                 "binance_api_key": binance_api_key,
                 "binance_secret_key": binance_secret_key,
                 "emergency_stop": emergency_stop,
+                "secondary_email": secondary_email,
                 "btn_disabled": btn_disabled,
                 "btn_style": btn_style,
                 "chart_labels": json.dumps(chart_labels_list),
@@ -504,21 +557,57 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
     execute_automated_trade()
     return RedirectResponse(url="/", status_code=303)
 
+@app.post("/secure-profits")
+async def secure_profits(amount_to_secure: float = Form(...), session_token: Optional[str] = Cookie(None)):
+    """Endpoint para transferir ganancias a la cuenta secundaria de Binance manualmente."""
+    user_email = get_current_user(session_token)
+    if not user_email:
+        return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
+    ak_row = cursor.fetchone()
+    api_key = ak_row['value'] if ak_row else ""
+
+    cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
+    sk_row = cursor.fetchone()
+    secret_key = sk_row['value'] if sk_row else ""
+
+    cursor.execute("SELECT value FROM settings WHERE key = 'secondary_subaccount_email'")
+    sec_row = cursor.fetchone()
+    sub_email = sec_row['value'] if sec_row else ""
+
+    cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+    mode_row = cursor.fetchone()
+    mode = mode_row['value'] if mode_row else "demo"
+
+    cursor.close()
+    conn.close()
+
+    success, message = transfer_profits_to_secondary(api_key, secret_key, sub_email, amount_to_secure, mode)
+
+    if success:
+        send_telegram_alert(f"🔒 <b>¡Ganancias Aseguradas con Éxito!</b>\n• Se han transferido <b>${amount_to_secure} USDT</b> a la cuenta secundaria de Binance.")
+        return RedirectResponse(url="/?msg=Ganancias%20aseguradas%20correctamente", status_code=303)
+    else:
+        return RedirectResponse(url=f"/?msg=Error%20al%20asegurar:%20{message}", status_code=303)
+
 @app.post("/toggle-emergency-stop")
 async def toggle_emergency_stop(session_token: Optional[str] = Cookie(None)):
     """Endpoint para activar o desactivar el Kill Switch de emergencia de forma inmediata."""
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
-        
+         
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
     row = cursor.fetchone()
     current_val = row['value'] if row else "false"
-    
+     
     new_val = "false" if current_val.lower() == "true" else "true"
-    
+     
     cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', %s) ON CONFLICT (key) DO UPDATE SET value = %s", 
                    (new_val, new_val))
     conn.commit()
@@ -538,12 +627,12 @@ async def login(email: str = Form(...), password: str = Form(...)):
     cursor = conn.cursor()
     cursor.execute("SELECT password_hash, failed_attempts, is_blocked FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
-    
+     
     if not user or user['is_blocked'] == 1:
         cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=Credenciales%20incorrectas%20o%20cuenta%20bloqueada", status_code=303)
-        
+         
     if user['password_hash'] != hash_password(password):
         attempts = user['failed_attempts'] + 1
         blocked = 1 if attempts >= 5 else 0
@@ -552,16 +641,16 @@ async def login(email: str = Form(...), password: str = Form(...)):
         cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=Contraseña%20incorrecta", status_code=303)
-        
+         
     cursor.execute("UPDATE users SET failed_attempts = 0 WHERE email = %s", (email,))
-    
+     
     session_token = hashlib.sha256(f"{email}{time.time()}".encode()).hexdigest()
     cursor.execute("INSERT INTO sessions (session_token, email, created_at) VALUES (%s, %s, %s)", 
                    (session_token, email, obtener_hora_local()))
     conn.commit()
     cursor.close()
     conn.close()
-    
+     
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(key="session_token", value=session_token, httponly=True)
     return response
@@ -570,7 +659,7 @@ async def login(email: str = Form(...), password: str = Form(...)):
 async def register(email: str = Form(...), password: str = Form(...), confirm_password: str = Form(...)):
     if password != confirm_password:
         return RedirectResponse(url="/?msg=Las%20contraseñas%20no%20coinciden&active_tab=register", status_code=303)
-        
+         
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
@@ -578,7 +667,7 @@ async def register(email: str = Form(...), password: str = Form(...), confirm_pa
         cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=El%20correo%20ya%20está%20registrado&active_tab=register", status_code=303)
-        
+         
     cursor.execute("INSERT INTO users (email, password_hash) VALUES (%s, %s)", (email, hash_password(password)))
     conn.commit()
     cursor.close()
@@ -594,7 +683,7 @@ async def recovery(email: str = Form(...), new_password: str = Form(...)):
         cursor.close()
         conn.close()
         return RedirectResponse(url="/?msg=El%20correo%20no%20existe", status_code=303)
-        
+         
     cursor.execute("UPDATE users SET password_hash = %s, failed_attempts = 0, is_blocked = 0 WHERE email = %s", 
                    (hash_password(new_password), email))
     conn.commit()
@@ -611,7 +700,7 @@ async def logout(session_token: Optional[str] = Cookie(None)):
         conn.commit()
         cursor.close()
         conn.close()
-        
+         
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie(key="session_token")
     return response
@@ -621,7 +710,7 @@ async def update_capital(capital: float = Form(...), session_token: Optional[str
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
-        
+         
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', %s) ON CONFLICT (key) DO UPDATE SET value = %s", 
@@ -632,18 +721,19 @@ async def update_capital(capital: float = Form(...), session_token: Optional[str
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/update-trading-config")
-async def update_trading_config(trading_mode: str = Form(...), binance_api_key: str = Form(...), binance_secret_key: str = Form(...), session_token: Optional[str] = Cookie(None)):
+async def update_trading_config(trading_mode: str = Form(...), binance_api_key: str = Form(...), binance_secret_key: str = Form(...), secondary_subaccount_email: str = Form(default=""), session_token: Optional[str] = Cookie(None)):
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
-        
+         
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
     cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_api_key.strip(), binance_api_key.strip()))
     cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_secret_key.strip(), binance_secret_key.strip()))
+    cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (secondary_subaccount_email.strip(), secondary_subaccount_email.strip()))
     conn.commit()
     cursor.close()
     conn.close()
-    
+     
     return RedirectResponse(url="/", status_code=303)
