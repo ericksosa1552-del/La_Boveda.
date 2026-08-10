@@ -298,6 +298,19 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Nuevos campos integrados para Subcuenta y Telegram Chat ID -->
+                <div class="row" style="margin-top: 5px;">
+                    <div class="col">
+                        <label>Correo Subcuenta Secundaria</label>
+                        <input type="email" name="secondary_subaccount_email" value="{{ secondary_subaccount_email }}" placeholder="tucorreo@subcuenta.com">
+                    </div>
+                    <div class="col">
+                        <label>Telegram Chat ID Personal</label>
+                        <input type="text" name="telegram_chat_id" value="{{ telegram_chat_id }}" placeholder="Ej. 8536842251">
+                    </div>
+                </div>
+
                 <button type="submit" class="btn-gold" style="margin-top: 5px;">Guardar Configuración y Validar Llaves</button>
             </form>
         </div>
@@ -396,7 +409,7 @@
                         }
                     }
                 }
-            });
+          });
         });
 
         function descargarPDF() {
