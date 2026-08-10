@@ -117,7 +117,6 @@ def init_db():
             confidence_score REAL
         )
     ''')
-    # Tabla de usuarios actualizada con telegram_chat_id individual
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -286,7 +285,6 @@ def execute_automated_trade():
          
         conn.commit()
         
-        # Obtener todos los chat_id de Telegram registrados por los usuarios para enviarles notificaciones personalizadas
         cursor.execute("SELECT telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL AND telegram_chat_id != ''")
         users_with_telegram = cursor.fetchall()
 
@@ -303,12 +301,10 @@ def execute_automated_trade():
             f"• <b>Confianza IA:</b> {confidence_score}%"
         )
 
-        # Enviar notificación a cada usuario en su propio chat de Telegram
         if users_with_telegram:
             for u in users_with_telegram:
                 send_telegram_alert(alert_msg, chat_id=u['telegram_chat_id'])
         else:
-            # Respaldo por defecto si ningún usuario ha configurado su telegram_chat_id
             send_telegram_alert(alert_msg)
 
     except Exception as e:
@@ -766,7 +762,7 @@ async def update_trading_config(
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    if user_email == ADMIN_EMAIL:
+    if user_email =="ericksosa1552@gmail.com":
         cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
         cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_api_key.strip(), binance_api_key.strip()))
         cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_secret_key.strip(), binance_secret_key.strip()))
@@ -774,12 +770,11 @@ async def update_trading_config(
     else:
         cursor.execute("""
             UPDATE users 
-            SET binance_api_key = %s, binance_secret_key = %s, trading_mode = %s, secondary_email = %s, telegram_chat_id = %s 
+            SET trading_mode = %s, binance_api_key = %s, binance_secret_key = %s, secondary_email = %s, telegram_chat_id = %s 
             WHERE email = %s
-        """, (binance_api_key.strip(), binance_secret_key.strip(), trading_mode, secondary_subaccount_email.strip(), telegram_chat_id.strip(), user_email))
+        """, (trading_mode, binance_api_key.strip(), binance_secret_key.strip(), secondary_subaccount_email.strip(), telegram_chat_id.strip(), user_email))
 
     conn.commit()
     cursor.close()
     conn.close()
-     
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/?msg=Configuración%20actualizada%20con%20éxito", status_code=303)
