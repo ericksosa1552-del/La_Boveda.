@@ -20,7 +20,7 @@ templates = Jinja2Templates(directory="templates")
 # ==========================================
 # CONFIGURACIÓN DEL ADMINISTRADOR Y ZONA HORARIA
 # ==========================================
-ADMIN_EMAIL = "tucorreo@admin.com"  # <--- Cambia esto por tu correo real de administrador
+ADMIN_EMAIL = "ericksosa1552@gmail.com"  # <--- Cambia esto por tu correo real de administrador
 
 ZONA_HORARIA_OFFSET = -6  
 tz_local = timezone(timedelta(hours=ZONA_HORARIA_OFFSET))
@@ -762,7 +762,7 @@ async def update_trading_config(
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    if user_email =="ericksosa1552@gmail.com":
+    if user_email ==ADMIN_EMAIL:
         cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
         cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_api_key.strip(), binance_api_key.strip()))
         cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_secret_key.strip(), binance_secret_key.strip()))
