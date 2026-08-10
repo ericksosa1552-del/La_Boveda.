@@ -145,7 +145,6 @@
         .pnl-pos { color: #34d399; font-weight: bold; }
         .pnl-neg { color: #f87171; font-weight: bold; }
 
-        /* Contenedor optimizado para el gráfico de desempeño */
         .chart-container {
             position: relative;
             width: 100%;
@@ -216,7 +215,7 @@
 
     <div class="dashboard-container" id="dashboardBox">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; gap: 10px;">
-            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v5.0 (Riesgo 1%)</span></h1>
+            <h1 style="margin: 0; text-align: left;">LA BÓVEDA <span style="font-size: 12px; color: #fbbf24;">v5.1 (Riesgo 1%)</span></h1>
             <a href="/logout" class="btn-logout">Cerrar Sesión</a>
         </div>
         <div class="subtitle" style="text-align: left; margin-bottom: 20px;">Motor con Autoevolución de IA, Notificaciones en Bloque, Kill Switch y Riesgo al 1%</div>
@@ -249,7 +248,7 @@
             </div>
         </div>
 
-        <!-- NUEVO: Dashboard de Análisis de Desempeño (Curva de Capital) -->
+        <!-- Dashboard de Análisis de Desempeño (Curva de Capital) -->
         <div class="card">
             <label style="color: #fbbf24; margin-bottom: 8px; font-size: 13px;">📈 Curva de Capital (Desempeño en Tiempo Real)</label>
             <div class="chart-container">
@@ -361,9 +360,6 @@
         document.addEventListener("DOMContentLoaded", function() {
             const ctx = document.getElementById('capitalChart').getContext('2d');
             
-            // Puedes inyectar las etiquetas (ej. fechas/horas) y los valores del balance desde Flask usando Jinja2
-            // Ejemplo: const chartLabels = {{ chart_labels | safe }}; const chartData = {{ chart_data | safe }};
-            // Datos de ejemplo por defecto para que luzca bien de inmediato:
             const chartLabels = {{ chart_labels | default("['Inicio', 'Op 1', 'Op 2', 'Op 3']", true) | safe }};
             const chartData = {{ chart_data | default("[100, 103.5, 101.8, 105.2]", true) | safe }};
 
