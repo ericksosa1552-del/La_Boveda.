@@ -20,18 +20,16 @@ templates = Jinja2Templates(directory="templates")
 # ==========================================
 # CONFIGURACIÓN DEL ADMINISTRADOR Y ZONA HORARIA
 # ==========================================
-ADMIN_EMAIL = "ericksosa1552@gmail.com"  # <--- Cambia esto por tu correo real de administrador
+ADMIN_EMAIL = "ericksosa1552@gmail.com"
 
 ZONA_HORARIA_OFFSET = -6  
 tz_local = timezone(timedelta(hours=ZONA_HORARIA_OFFSET))
 
 def obtener_hora_local():
-    """Retorna la fecha y hora actual ajustada a la zona horaria local del usuario."""
     return datetime.now(tz_local).strftime("%Y-%m-%d %H:%M:%S")
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
 
-# Credenciales de Telegram leídas directamente desde el entorno de Render (Para el Admin y Bot Token global de usuarios)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -41,10 +39,6 @@ bot_status = {
 }
 
 def send_telegram_alert(message: str, target_chat_id: Optional[str] = None):
-    """Envía la alerta de Telegram de forma individualizada.
-       Si se le pasa un target_chat_id (el del usuario), usa ese. 
-       Si no, usa el chat_id por defecto de Render (el tuyo como admin).
-    """
     chat_to_use = target_chat_id if target_chat_id else TELEGRAM_CHAT_ID
     if not TELEGRAM_BOT_TOKEN or not chat_to_use:
         return
@@ -73,71 +67,73 @@ def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-     
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS operations (
-            id SERIAL PRIMARY KEY,
-            timestamp TEXT,
-            mode TEXT,
-            symbol TEXT,
-            action TEXT,
-            price REAL,
-            amount REAL,
-            status TEXT,
-            profit_loss REAL,
-            market_pattern_id TEXT,
-            user_email TEXT DEFAULT ''
-        )
-    ''')
-    
-    # Asegurar que la columna user_email exista si la tabla ya fue creada previamente sin ella
     try:
-        cursor.execute('ALTER TABLE operations ADD COLUMN IF NOT EXISTS user_email TEXT DEFAULT ""')
-        conn.commit()
-    except Exception:
-        conn.rollback()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS operations (
+                id SERIAL PRIMARY KEY,
+                timestamp TEXT,
+                mode TEXT,
+                symbol TEXT,
+                action TEXT,
+                price REAL,
+                amount REAL,
+                status TEXT,
+                profit_loss REAL,
+                market_pattern_id TEXT,
+                user_email TEXT DEFAULT ''
+            )
+        ''')
+        
+        try:
+            cursor.execute('ALTER TABLE operations ADD COLUMN IF NOT EXISTS user_email TEXT DEFAULT \'\'')
+            conn.commit()
+        except Exception:
+            conn.rollback()
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    ''')
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', '100.0') ON CONFLICT (key) DO NOTHING")
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', 'demo') ON CONFLICT (key) DO NOTHING")
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', '') ON CONFLICT (key) DO NOTHING")
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', '') ON CONFLICT (key) DO NOTHING")
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', 'false') ON CONFLICT (key) DO NOTHING")
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', '') ON CONFLICT (key) DO NOTHING")
-     
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email TEXT UNIQUE,
-            password_hash TEXT,
-            failed_attempts INTEGER DEFAULT 0,
-            is_blocked INTEGER DEFAULT 0,
-            binance_api_key TEXT DEFAULT '',
-            binance_secret_key TEXT DEFAULT '',
-            trading_mode TEXT DEFAULT 'demo',
-            secondary_email TEXT DEFAULT '',
-            capital_ceiling REAL DEFAULT 100.0,
-            emergency_stop TEXT DEFAULT 'false',
-            telegram_chat_id TEXT DEFAULT ''
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sessions (
-            session_token TEXT PRIMARY KEY,
-            email TEXT,
-            created_at TEXT
-        )
-    ''')
-    conn.commit()
-    cursor.close()
-    conn.close()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', '100.0') ON CONFLICT (key) DO NOTHING")
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', 'demo') ON CONFLICT (key) DO NOTHING")
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', '') ON CONFLICT (key) DO NOTHING")
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', '') ON CONFLICT (key) DO NOTHING")
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', 'false') ON CONFLICT (key) DO NOTHING")
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', '') ON CONFLICT (key) DO NOTHING")
+         
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email TEXT UNIQUE,
+                password_hash TEXT,
+                failed_attempts INTEGER DEFAULT 0,
+                is_blocked INTEGER DEFAULT 0,
+                binance_api_key TEXT DEFAULT '',
+                binance_secret_key TEXT DEFAULT '',
+                trading_mode TEXT DEFAULT 'demo',
+                secondary_email TEXT DEFAULT '',
+                capital_ceiling REAL DEFAULT 100.0,
+                emergency_stop TEXT DEFAULT 'false',
+                telegram_chat_id TEXT DEFAULT ''
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_token TEXT PRIMARY KEY,
+                email TEXT,
+                created_at TEXT
+            )
+        ''')
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error inicializando DB: {e}")
 
 init_db()
 
@@ -160,7 +156,7 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
         signature = hmac.new(
             secret_key.encode('utf-8'),
             params.encode('utf-8'),
-            hash_lib := hashlib.sha256
+            hashlib.sha256
         ).hexdigest()
          
         url = f"{base_url}{endpoint}?{params}&signature={signature}"
@@ -335,20 +331,23 @@ async def cron_ping():
 def get_current_user(session_token: Optional[str]) -> Optional[str]:
     if not session_token:
         return None
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT email FROM sessions WHERE session_token = %s", (session_token,))
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    return row['email'] if row else None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT email FROM sessions WHERE session_token = %s", (session_token,))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return row['email'] if row else None
+    except Exception:
+        return None
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, session_token: Optional[str] = Cookie(None), msg: str = "", active_tab: str = "login"):
     user_email = get_current_user(session_token)
      
     body_align = "center"
-    auth_position = "absolute"
+    auth_position = "relative"
     auth_display = "block"
     dashboard_display = "none"
     alert_display = "block" if msg else "none"
@@ -375,7 +374,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
 
     if user_email:
         body_align = "flex-start"
-        auth_position = "relative"
+        auth_position = "absolute"
         auth_display = "none"
         dashboard_display = "block"
         alert_display = "none"
@@ -496,44 +495,41 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         btn_disabled = ""
         btn_style = ""
 
-    try:
-        return templates.TemplateResponse(
-            request, 
-            "index.html", 
-            {
-                "body_align": body_align,
-                "auth_position": auth_position,
-                "auth_display": auth_display,
-                "dashboard_display": dashboard_display,
-                "alert_display": alert_display,
-                "alert_message": msg,
-                "login_tab_active": login_tab_active,
-                "register_tab_active": register_tab_active,
-                "login_section_active": login_section_active,
-                "register_section_active": register_section_active,
-                "recovery_section_active": recovery_section_active,
-                "total_ops": str(total_ops),
-                "total_pnl": str(total_pnl),
-                "capital_ceiling": str(capital_ceiling),
-                "demo_selected": demo_selected,
-                "live_selected": live_selected,
-                "motor_status_text": motor_status_text,
-                "badge_class": badge_class,
-                "badge_text": badge_text,
-                "binance_api_key": binance_api_key,
-                "binance_secret_key": binance_secret_key,
-                "emergency_stop": emergency_stop,
-                "secondary_email": secondary_email,
-                "telegram_chat_id": telegram_chat_id,
-                "btn_disabled": btn_disabled,
-                "btn_style": btn_style,
-                "chart_labels": json.dumps(chart_labels_list),
-                "chart_data": json.dumps(chart_data_list),
-                "operations_rows": HTMLResponse(content=rows_html).body.decode("utf-8")
-            }
-        )
-    except Exception as e:
-        return HTMLResponse(content=f"<h3>Error interno renderizando la plantilla:</h3><p>{str(e)}</p>", status_code=500)
+    return templates.TemplateResponse(
+        request, 
+        "index.html", 
+        {
+            "body_align": body_align,
+            "auth_position": auth_position,
+            "auth_display": auth_display,
+            "dashboard_display": dashboard_display,
+            "alert_display": alert_display,
+            "alert_message": msg,
+            "login_tab_active": login_tab_active,
+            "register_tab_active": register_tab_active,
+            "login_section_active": login_section_active,
+            "register_section_active": register_section_active,
+            "recovery_section_active": recovery_section_active,
+            "total_ops": str(total_ops),
+            "total_pnl": str(total_pnl),
+            "capital_ceiling": str(capital_ceiling),
+            "demo_selected": demo_selected,
+            "live_selected": live_selected,
+            "motor_status_text": motor_status_text,
+            "badge_class": badge_class,
+            "badge_text": badge_text,
+            "binance_api_key": binance_api_key,
+            "binance_secret_key": binance_secret_key,
+            "emergency_stop": emergency_stop,
+            "secondary_subaccount_email": secondary_email,
+            "telegram_chat_id": telegram_chat_id,
+            "btn_disabled": btn_disabled,
+            "btn_style": btn_style,
+            "chart_labels": json.dumps(chart_labels_list),
+            "chart_data": json.dumps(chart_data_list),
+            "operations_rows": rows_html
+        }
+    )
 
 @app.post("/run-bot")
 async def run_bot(session_token: Optional[str] = Cookie(None)):
