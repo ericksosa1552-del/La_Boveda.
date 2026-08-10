@@ -313,18 +313,14 @@ async def cron_ping():
         conn = get_db_connection()
         cursor = conn.cursor()
          
-        # 1. Ejecutar para el administrador una sola vez
         execute_automated_trade(ADMIN_EMAIL)
 
-        # 2. Buscar usuarios registrados EXCLUYENDO al administrador para evitar duplicados
         cursor.execute("SELECT email FROM users WHERE is_blocked = 0 AND email != %s", (ADMIN_EMAIL,))
         users = cursor.fetchall()
         cursor.close()
         conn.close()
 
-        # 3. Ejecutar solo para los demás usuarios registrados
         for u in users:
-            # Control de tiempo (Cooldown): verificar que no haya operado hace menos de 50 segundos
             conn_chk = get_db_connection()
             cur_chk = conn_chk.cursor()
             cur_chk.execute("""
@@ -338,12 +334,9 @@ async def cron_ping():
 
             if last_op and last_op['timestamp']:
                 try:
-                    # Convertir el texto de la base de datos a datetime para comparar
-                    from datetime import datetime
                     last_time = datetime.strptime(last_op['timestamp'], "%Y-%m-%d %H:%M:%S")
                     diff_seconds = (datetime.now() - last_time).total_seconds()
                     if diff_seconds < 50:
-                        # Si operó hace menos de 50 segundos, omitir este ciclo para este usuario
                         continue
                 except Exception:
                     pass
@@ -775,12 +768,11 @@ async def update_trading_config(
         cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (secondary_subaccount_email.strip(), secondary_subaccount_email.strip()))
     else:
         cursor.execute("""
-            UPDATE users 
-            SET trading_mode = %s, binance_api_key = %s, binance_secret_key = %s, secondary_email = %s, telegram_chat_id = %s 
+            UPDATE users SET trading_mode = %s, binance_api_key = %s, binance_secret_key = %s, secondary_email = %s, telegram_chat_id = %s
             WHERE email = %s
         """, (trading_mode, binance_api_key.strip(), binance_secret_key.strip(), secondary_subaccount_email.strip(), telegram_chat_id.strip(), user_email))
 
     conn.commit()
     cursor.close()
     conn.close()
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url="/?msg=Configuración%20actualizada%20correctamente", status_code=303)
