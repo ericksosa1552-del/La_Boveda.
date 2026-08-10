@@ -313,21 +313,48 @@ async def cron_ping():
         conn = get_db_connection()
         cursor = conn.cursor()
          
+        # 1. Ejecutar para el administrador una sola vez
         execute_automated_trade(ADMIN_EMAIL)
 
-        cursor.execute("SELECT email FROM users WHERE is_blocked = 0")
+        # 2. Buscar usuarios registrados EXCLUYENDO al administrador para evitar duplicados
+        cursor.execute("SELECT email FROM users WHERE is_blocked = 0 AND email != %s", (ADMIN_EMAIL,))
         users = cursor.fetchall()
         cursor.close()
         conn.close()
 
+        # 3. Ejecutar solo para los demás usuarios registrados
         for u in users:
+            # Control de tiempo (Cooldown): verificar que no haya operado hace menos de 50 segundos
+            conn_chk = get_db_connection()
+            cur_chk = conn_chk.cursor()
+            cur_chk.execute("""
+                SELECT timestamp FROM operations 
+                WHERE user_email = %s 
+                ORDER BY id DESC LIMIT 1
+            """, (u['email'],))
+            last_op = cur_chk.fetchone()
+            cur_chk.close()
+            conn_chk.close()
+
+            if last_op and last_op['timestamp']:
+                try:
+                    # Convertir el texto de la base de datos a datetime para comparar
+                    from datetime import datetime
+                    last_time = datetime.strptime(last_op['timestamp'], "%Y-%m-%d %H:%M:%S")
+                    diff_seconds = (datetime.now() - last_time).total_seconds()
+                    if diff_seconds < 50:
+                        # Si operó hace menos de 50 segundos, omitir este ciclo para este usuario
+                        continue
+                except Exception:
+                    pass
+
             execute_automated_trade(u['email'])
 
-        return {"status": "success", "message": "Ping recibido y ciclos automáticos ejecutados para todos los usuarios."}
+        return {"status": "success", "message": "Ping recibido y ciclos automáticos ejecutados sin duplicidad."}
              
     except Exception as e:
         return {"status": "alive_forced", "message": f"Ping recibido con excepciones: {str(e)}"}
-
+        
 def get_current_user(session_token: Optional[str]) -> Optional[str]:
     if not session_token:
         return None
