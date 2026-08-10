@@ -300,7 +300,7 @@ def execute_automated_trade():
             f"• <b>Resultado PnL:</b> {'+' if profit_loss >= 0 else ''}{profit_loss} USDT\n"
             f"• <b>Confianza IA:</b> {confidence_score}%"
         )
-
+        
         if users_with_telegram:
             for u in users_with_telegram:
                 send_telegram_alert(alert_msg, chat_id=u['telegram_chat_id'])
@@ -582,8 +582,8 @@ async def secure_profits(amount_to_secure: float = Form(...), session_token: Opt
 
         cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
         sk_row = cursor.fetchone()
-        secret_key = sk_row['value'] if sk_row else ""
-
+        secret_key = sk_row['value'] if sk_row else "" 
+        
         cursor.execute("SELECT value FROM settings WHERE key = 'secondary_subaccount_email'")
         sec_row = cursor.fetchone()
         sub_email = sec_row['value'] if sec_row else ""
@@ -762,7 +762,7 @@ async def update_trading_config(
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    if user_email ==ADMIN_EMAIL:
+    if user_email == ADMIN_EMAIL:
         cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
         cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_api_key.strip(), binance_api_key.strip()))
         cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_secret_key.strip(), binance_secret_key.strip()))
@@ -777,4 +777,4 @@ async def update_trading_config(
     conn.commit()
     cursor.close()
     conn.close()
-    return RedirectResponse(url="/?msg=Configuración%20actualizada%20con%20éxito", status_code=303)
+    return RedirectResponse(url="/?msg=Configuracion%20actualizada%20exitosamente", status_code=303)
