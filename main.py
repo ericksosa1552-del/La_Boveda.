@@ -300,7 +300,7 @@ def execute_automated_trade():
             f"• <b>Resultado PnL:</b> {'+' if profit_loss >= 0 else ''}{profit_loss} USDT\n"
             f"• <b>Confianza IA:</b> {confidence_score}%"
         )
-        
+         
         if users_with_telegram:
             for u in users_with_telegram:
                 send_telegram_alert(alert_msg, chat_id=u['telegram_chat_id'])
@@ -574,7 +574,7 @@ async def secure_profits(amount_to_secure: float = Form(...), session_token: Opt
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+     
     if user_email == ADMIN_EMAIL:
         cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
         ak_row = cursor.fetchone()
@@ -777,4 +777,4 @@ async def update_trading_config(
     conn.commit()
     cursor.close()
     conn.close()
-    return RedirectResponse(url="/?msg=Configuracion%20actualizada%20exitosamente", status_code=303)
+    return RedirectResponse(url="/?msg=Configuracion%20actualizada%20correctamente", status_code=303)
