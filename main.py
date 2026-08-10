@@ -18,8 +18,10 @@ app = FastAPI(title="La Bóveda", version="5.0")
 templates = Jinja2Templates(directory="templates")
 
 # ==========================================
-# CONFIGURACIÓN DE ZONA HORARIA (HORA LOCAL)
+# CONFIGURACIÓN DEL ADMINISTRADOR Y ZONA HORARIA
 # ==========================================
+ADMIN_EMAIL = "tucorreo@admin.com"  # <--- Cambia esto por tu correo real de administrador
+
 ZONA_HORARIA_OFFSET = -6  
 tz_local = timezone(timedelta(hours=ZONA_HORARIA_OFFSET))
 
@@ -27,23 +29,17 @@ def obtener_hora_local():
     """Retorna la fecha y hora actual ajustada a la zona horaria local del usuario."""
     return datetime.now(tz_local).strftime("%Y-%m-%d %H:%M:%S")
 
-# URL de conexión a Supabase (PostgreSQL) obtenida desde las variables de entorno de Render
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
 
-# --- CREDENCIALES DE TELEGRAM SEGURAS (Vía Variables de Entorno) ---
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8536842251")
 
-# --- ESTADO GLOBAL DE OPERACIÓN ---
 bot_status = {
     "is_operating": False,
     "mode": "demo"
 }
 
 def send_telegram_alert(message: str):
-    """
-    Formato de notificación optimizado con diseño de bloques, separadores y énfasis visual.
-    """
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return
      
@@ -98,9 +94,7 @@ def init_db():
     cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', 'demo') ON CONFLICT (key) DO NOTHING")
     cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', '') ON CONFLICT (key) DO NOTHING")
     cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', '') ON CONFLICT (key) DO NOTHING")
-    # Configuración inicial para el Kill Switch (apagado de emergencia por defecto en False)
     cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', 'false') ON CONFLICT (key) DO NOTHING")
-    # Configuración para la cuenta secundaria o email de subcuenta de Binance
     cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', '') ON CONFLICT (key) DO NOTHING")
      
     cursor.execute('''
@@ -113,7 +107,6 @@ def init_db():
             weight_adjustment REAL
         )
     ''')
-    # Nueva tabla para registrar el razonamiento analítico de la IA antes de cada decisión
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ai_reasoning_logs (
             id SERIAL PRIMARY KEY,
@@ -123,13 +116,20 @@ def init_db():
             confidence_score REAL
         )
     ''')
+    # Tabla de usuarios actualizada con campos propios para credenciales individuales
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             email TEXT UNIQUE,
             password_hash TEXT,
             failed_attempts INTEGER DEFAULT 0,
-            is_blocked INTEGER DEFAULT 0
+            is_blocked INTEGER DEFAULT 0,
+            binance_api_key TEXT DEFAULT '',
+            binance_secret_key TEXT DEFAULT '',
+            trading_mode TEXT DEFAULT 'demo',
+            secondary_email TEXT DEFAULT '',
+            capital_ceiling REAL DEFAULT 100.0,
+            emergency_stop TEXT DEFAULT 'false'
         )
     ''')
     cursor.execute('''
@@ -177,12 +177,7 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
         return False
 
 def transfer_profits_to_secondary(api_key: str, secret_key: str, subaccount_email: str, amount_usdt: float, mode: str):
-    """
-    Realiza la transferencia universal en Binance hacia la cuenta secundaria / subcuenta
-    o simula la acción si el sistema está en entorno DEMO.
-    """
     if mode == "demo":
-        # Simulación exitosa para entorno de pruebas Testnet/Demo
         return True, f"Simulación exitosa: Se aseguraron {amount_usdt} USDT en la cuenta secundaria."
 
     if not subaccount_email or not api_key or not secret_key:
@@ -222,12 +217,10 @@ def transfer_profits_to_secondary(api_key: str, secret_key: str, subaccount_emai
         return False, f"Excepción de red al transferir: {str(e)}"
 
 def execute_automated_trade():
-    """Función interna que ejecuta la lógica de compra automática con riesgo del 1%, PnL separado, registro de razonamiento y validación de Kill Switch."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
          
-        # Verificar estado del Kill Switch de emergencia
         cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
         es_row = cursor.fetchone()
         if es_row and es_row['value'].lower() == 'true':
@@ -259,11 +252,8 @@ def execute_automated_trade():
          
         action = "COMPRA"
         price = par_seleccionado["precio_base"] + round(random.uniform(-5.0, 5.0), 2)
-         
-        # Riesgo estricto del 1% para la entrada/monto invertido
         amount = round(capital_ceiling * 0.01, 2)
          
-        # Lógica de PnL: ganancias atractivas (+3 a +6) o pérdidas controladas (-0.10 a -0.50)
         es_ganancia = random.choice([True, False, True])
          
         if es_ganancia:
@@ -276,20 +266,17 @@ def execute_automated_trade():
         timestamp = obtener_hora_local()
         pattern_id = hashlib.sha256(f"{symbol}{timestamp}".encode()).hexdigest()[:10]
 
-        # Generar contexto de razonamiento analítico de la IA
         confidence_score = round(random.uniform(75.0, 98.5), 2)
         decision_context = f"Análisis volumétrico y de order book favorable en {symbol}. Desviación de precio dentro del margen óptimo de entrada con ponderación de riesgo adaptativa."
 
         conn = get_db_connection()
         cursor = conn.cursor()
          
-        # Guardar operación
         cursor.execute('''
             INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (timestamp, mode, symbol, action, price, amount, status, profit_loss, pattern_id))
          
-        # Guardar registro del razonamiento de la IA
         cursor.execute('''
             INSERT INTO ai_reasoning_logs (timestamp, symbol, decision_context, confidence_score)
             VALUES (%s, %s, %s, %s)
@@ -314,10 +301,6 @@ def execute_automated_trade():
 
 @app.get("/cron-ping")
 async def cron_ping():
-    """
-    Endpoint que mantiene la aplicación despierta y ejecuta automáticamente 
-    las operaciones de trading si las llaves de Binance son válidas y el Kill Switch está desactivado.
-    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -415,30 +398,42 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         total_ops = row_stats['count'] if row_stats and row_stats['count'] is not None else 0
         total_pnl = round(row_stats['sum'], 2) if row_stats and row_stats['sum'] is not None else 0.00
          
-        cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
-        cap_row = cursor.fetchone()
-        capital_ceiling = cap_row['value'] if cap_row else "100.0"
+        # Si es el administrador, lee de settings. Si es usuario común, lee de su tabla individual.
+        if user_email == ADMIN_EMAIL:
+            cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
+            cap_row = cursor.fetchone()
+            capital_ceiling = cap_row['value'] if cap_row else "100.0"
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-        mode_row = cursor.fetchone()
-        trading_mode = mode_row['value'] if mode_row else "demo"
+            cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+            mode_row = cursor.fetchone()
+            trading_mode = mode_row['value'] if mode_row else "demo"
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
-        ak_row = cursor.fetchone()
-        binance_api_key = ak_row['value'] if ak_row else ""
+            cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
+            ak_row = cursor.fetchone()
+            binance_api_key = ak_row['value'] if ak_row else ""
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
-        sk_row = cursor.fetchone()
-        binance_secret_key = sk_row['value'] if sk_row else ""
+            cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
+            sk_row = cursor.fetchone()
+            binance_secret_key = sk_row['value'] if sk_row else ""
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
-        es_row = cursor.fetchone()
-        emergency_stop = es_row['value'] if es_row else "false"
+            cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
+            es_row = cursor.fetchone()
+            emergency_stop = es_row['value'] if es_row else "false"
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'secondary_subaccount_email'")
-        sec_row = cursor.fetchone()
-        secondary_email = sec_row['value'] if sec_row else ""
-         
+            cursor.execute("SELECT value FROM settings WHERE key = 'secondary_subaccount_email'")
+            sec_row = cursor.fetchone()
+            secondary_email = sec_row['value'] if sec_row else ""
+        else:
+            cursor.execute("SELECT capital_ceiling, trading_mode, binance_api_key, binance_secret_key, emergency_stop, secondary_email FROM users WHERE email = %s", (user_email,))
+            u_data = cursor.fetchone()
+            if u_data:
+                capital_ceiling = str(u_data['capital_ceiling'] or 100.0)
+                trading_mode = u_data['trading_mode'] or "demo"
+                binance_api_key = u_data['binance_api_key'] or ""
+                binance_secret_key = u_data['binance_secret_key'] or ""
+                emergency_stop = u_data['emergency_stop'] or "false"
+                secondary_email = u_data['secondary_email'] or ""
+
         cursor.execute("SELECT timestamp, symbol, action, amount, status, profit_loss FROM operations ORDER BY id ASC")
         ops_all = cursor.fetchall()
          
@@ -448,7 +443,6 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         cursor.close()
         conn.close()
 
-        # Construir la curva de capital progresiva basada en el capital base y las operaciones
         current_balance = float(capital_ceiling)
         chart_labels_list = ["Base"]
         chart_data_list = [round(current_balance, 2)]
@@ -559,28 +553,36 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
 
 @app.post("/secure-profits")
 async def secure_profits(amount_to_secure: float = Form(...), session_token: Optional[str] = Cookie(None)):
-    """Endpoint para transferir ganancias a la cuenta secundaria de Binance manualmente."""
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
-    ak_row = cursor.fetchone()
-    api_key = ak_row['value'] if ak_row else ""
+    
+    if user_email == ADMIN_EMAIL:
+        cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
+        ak_row = cursor.fetchone()
+        api_key = ak_row['value'] if ak_row else ""
 
-    cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
-    sk_row = cursor.fetchone()
-    secret_key = sk_row['value'] if sk_row else ""
+        cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
+        sk_row = cursor.fetchone()
+        secret_key = sk_row['value'] if sk_row else ""
 
-    cursor.execute("SELECT value FROM settings WHERE key = 'secondary_subaccount_email'")
-    sec_row = cursor.fetchone()
-    sub_email = sec_row['value'] if sec_row else ""
+        cursor.execute("SELECT value FROM settings WHERE key = 'secondary_subaccount_email'")
+        sec_row = cursor.fetchone()
+        sub_email = sec_row['value'] if sec_row else ""
 
-    cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-    mode_row = cursor.fetchone()
-    mode = mode_row['value'] if mode_row else "demo"
+        cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+        mode_row = cursor.fetchone()
+        mode = mode_row['value'] if mode_row else "demo"
+    else:
+        cursor.execute("SELECT binance_api_key, binance_secret_key, secondary_email, trading_mode FROM users WHERE email = %s", (user_email,))
+        u_data = cursor.fetchone()
+        api_key = u_data['binance_api_key'] if u_data else ""
+        secret_key = u_data['binance_secret_key'] if u_data else ""
+        sub_email = u_data['secondary_email'] if u_data else ""
+        mode = u_data['trading_mode'] if u_data else "demo"
 
     cursor.close()
     conn.close()
@@ -595,21 +597,26 @@ async def secure_profits(amount_to_secure: float = Form(...), session_token: Opt
 
 @app.post("/toggle-emergency-stop")
 async def toggle_emergency_stop(session_token: Optional[str] = Cookie(None)):
-    """Endpoint para activar o desactivar el Kill Switch de emergencia de forma inmediata."""
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
          
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
-    row = cursor.fetchone()
-    current_val = row['value'] if row else "false"
-     
-    new_val = "false" if current_val.lower() == "true" else "true"
-     
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', %s) ON CONFLICT (key) DO UPDATE SET value = %s", 
-                   (new_val, new_val))
+    
+    if user_email == ADMIN_EMAIL:
+        cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
+        row = cursor.fetchone()
+        current_val = row['value'] if row else "false"
+        new_val = "false" if current_val.lower() == "true" else "true"
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (new_val, new_val))
+    else:
+        cursor.execute("SELECT emergency_stop FROM users WHERE email = %s", (user_email,))
+        row = cursor.fetchone()
+        current_val = row['emergency_stop'] if row else "false"
+        new_val = "false" if current_val.lower() == "true" else "true"
+        cursor.execute("UPDATE users SET emergency_stop = %s WHERE email = %s", (new_val, user_email))
+
     conn.commit()
     cursor.close()
     conn.close()
@@ -713,8 +720,12 @@ async def update_capital(capital: float = Form(...), session_token: Optional[str
          
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', %s) ON CONFLICT (key) DO UPDATE SET value = %s", 
-                   (str(capital), str(capital)))
+    
+    if user_email == ADMIN_EMAIL:
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (str(capital), str(capital)))
+    else:
+        cursor.execute("UPDATE users SET capital_ceiling = %s WHERE email = %s", (capital, user_email))
+
     conn.commit()
     cursor.close()
     conn.close()
@@ -728,10 +739,19 @@ async def update_trading_config(trading_mode: str = Form(...), binance_api_key: 
          
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_api_key.strip(), binance_api_key.strip()))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_secret_key.strip(), binance_secret_key.strip()))
-    cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (secondary_subaccount_email.strip(), secondary_subaccount_email.strip()))
+    
+    if user_email == "ericksosa1552@gmail.com":
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_api_key.strip(), binance_api_key.strip()))
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_secret_key.strip(), binance_secret_key.strip()))
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (secondary_subaccount_email.strip(), secondary_subaccount_email.strip()))
+    else:
+        cursor.execute("""
+            UPDATE users 
+            SET binance_api_key = %s, binance_secret_key = %s, trading_mode = %s, secondary_email = %s 
+            WHERE email = %s
+        """, (binance_api_key.strip(), binance_secret_key.strip(), trading_mode, secondary_subaccount_email.strip(), user_email))
+
     conn.commit()
     cursor.close()
     conn.close()
