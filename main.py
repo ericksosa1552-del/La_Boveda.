@@ -91,6 +91,14 @@ def init_db():
             user_email TEXT DEFAULT ''
         )
     ''')
+    
+    # Asegurar que la columna user_email exista si la tabla ya fue creada previamente sin ella
+    try:
+        cursor.execute('ALTER TABLE operations ADD COLUMN IF NOT EXISTS user_email TEXT DEFAULT ""')
+        conn.commit()
+    except Exception:
+        conn.rollback()
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
@@ -152,7 +160,7 @@ def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool
         signature = hmac.new(
             secret_key.encode('utf-8'),
             params.encode('utf-8'),
-            hashlib.sha256
+            hash_lib := hashlib.sha256
         ).hexdigest()
          
         url = f"{base_url}{endpoint}?{params}&signature={signature}"
@@ -209,7 +217,6 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
         conn = get_db_connection()
         cursor = conn.cursor()
          
-        # Si no se especifica usuario, por defecto opera el admin
         exec_user = target_user_email if target_user_email else ADMIN_EMAIL
 
         if exec_user == ADMIN_EMAIL:
@@ -299,7 +306,6 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
             f"• <b>Confianza IA:</b> {confidence_score}%"
         )
          
-        # Envía la alerta exclusivamente al Chat ID correspondiente (al usuario o al admin)
         send_telegram_alert(alert_msg, target_telegram_chat)
 
     except Exception as e:
@@ -311,7 +317,6 @@ async def cron_ping():
         conn = get_db_connection()
         cursor = conn.cursor()
          
-        # Ejecutar simulación automática global para admin y usuarios activos
         execute_automated_trade(ADMIN_EMAIL)
 
         cursor.execute("SELECT email FROM users WHERE is_blocked = 0")
