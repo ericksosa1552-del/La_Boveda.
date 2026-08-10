@@ -13,7 +13,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="5.0")
+app = FastAPI(title="La Bóveda", version="5.1")
 
 templates = Jinja2Templates(directory="templates")
 
@@ -39,8 +39,9 @@ bot_status = {
     "mode": "demo"
 }
 
-def send_telegram_alert(message: str):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+def send_telegram_alert(message: str, chat_id: Optional[str] = None):
+    target_chat_id = chat_id if chat_id else TELEGRAM_CHAT_ID
+    if not TELEGRAM_BOT_TOKEN or not target_chat_id:
         return
      
     formatted_message = (
@@ -54,7 +55,7 @@ def send_telegram_alert(message: str):
      
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
-        "chat_id": TELEGRAM_CHAT_ID, 
+        "chat_id": target_chat_id, 
         "text": formatted_message, 
         "parse_mode": "HTML"
     }
@@ -116,7 +117,7 @@ def init_db():
             confidence_score REAL
         )
     ''')
-    # Tabla de usuarios actualizada con campos propios para credenciales individuales
+    # Tabla de usuarios actualizada con telegram_chat_id individual
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -129,7 +130,8 @@ def init_db():
             trading_mode TEXT DEFAULT 'demo',
             secondary_email TEXT DEFAULT '',
             capital_ceiling REAL DEFAULT 100.0,
-            emergency_stop TEXT DEFAULT 'false'
+            emergency_stop TEXT DEFAULT 'false',
+            telegram_chat_id TEXT DEFAULT ''
         )
     ''')
     cursor.execute('''
@@ -283,6 +285,11 @@ def execute_automated_trade():
         ''', (timestamp, symbol, decision_context, confidence_score))
          
         conn.commit()
+        
+        # Obtener todos los chat_id de Telegram registrados por los usuarios para enviarles notificaciones personalizadas
+        cursor.execute("SELECT telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL AND telegram_chat_id != ''")
+        users_with_telegram = cursor.fetchall()
+
         cursor.close()
         conn.close()
 
@@ -295,7 +302,15 @@ def execute_automated_trade():
             f"• <b>Resultado PnL:</b> {'+' if profit_loss >= 0 else ''}{profit_loss} USDT\n"
             f"• <b>Confianza IA:</b> {confidence_score}%"
         )
-        send_telegram_alert(alert_msg)
+
+        # Enviar notificación a cada usuario en su propio chat de Telegram
+        if users_with_telegram:
+            for u in users_with_telegram:
+                send_telegram_alert(alert_msg, chat_id=u['telegram_chat_id'])
+        else:
+            # Respaldo por defecto si ningún usuario ha configurado su telegram_chat_id
+            send_telegram_alert(alert_msg)
+
     except Exception as e:
         print(f"Error en ejecución automática: {e}")
 
@@ -378,6 +393,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
     binance_secret_key = ""
     emergency_stop = "false"
     secondary_email = ""
+    telegram_chat_id = ""
     rows_html = "<tr><td colspan='4' style='text-align: center; color: #6b7280;'>No hay operaciones registradas aún. Presiona simular.</td></tr>"
 
     chart_labels_list = ["Inicio"]
@@ -398,7 +414,6 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         total_ops = row_stats['count'] if row_stats and row_stats['count'] is not None else 0
         total_pnl = round(row_stats['sum'], 2) if row_stats and row_stats['sum'] is not None else 0.00
          
-        # Si es el administrador, lee de settings. Si es usuario común, lee de su tabla individual.
         if user_email == ADMIN_EMAIL:
             cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
             cap_row = cursor.fetchone()
@@ -423,8 +438,10 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
             cursor.execute("SELECT value FROM settings WHERE key = 'secondary_subaccount_email'")
             sec_row = cursor.fetchone()
             secondary_email = sec_row['value'] if sec_row else ""
+
+            telegram_chat_id = TELEGRAM_CHAT_ID
         else:
-            cursor.execute("SELECT capital_ceiling, trading_mode, binance_api_key, binance_secret_key, emergency_stop, secondary_email FROM users WHERE email = %s", (user_email,))
+            cursor.execute("SELECT capital_ceiling, trading_mode, binance_api_key, binance_secret_key, emergency_stop, secondary_email, telegram_chat_id FROM users WHERE email = %s", (user_email,))
             u_data = cursor.fetchone()
             if u_data:
                 capital_ceiling = str(u_data['capital_ceiling'] or 100.0)
@@ -433,6 +450,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                 binance_secret_key = u_data['binance_secret_key'] or ""
                 emergency_stop = u_data['emergency_stop'] or "false"
                 secondary_email = u_data['secondary_email'] or ""
+                telegram_chat_id = u_data['telegram_chat_id'] or ""
 
         cursor.execute("SELECT timestamp, symbol, action, amount, status, profit_loss FROM operations ORDER BY id ASC")
         ops_all = cursor.fetchall()
@@ -532,6 +550,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                 "binance_secret_key": binance_secret_key,
                 "emergency_stop": emergency_stop,
                 "secondary_email": secondary_email,
+                "telegram_chat_id": telegram_chat_id,
                 "btn_disabled": btn_disabled,
                 "btn_style": btn_style,
                 "chart_labels": json.dumps(chart_labels_list),
@@ -732,7 +751,14 @@ async def update_capital(capital: float = Form(...), session_token: Optional[str
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/update-trading-config")
-async def update_trading_config(trading_mode: str = Form(...), binance_api_key: str = Form(...), binance_secret_key: str = Form(...), secondary_subaccount_email: str = Form(default=""), session_token: Optional[str] = Cookie(None)):
+async def update_trading_config(
+    trading_mode: str = Form(...), 
+    binance_api_key: str = Form(...), 
+    binance_secret_key: str = Form(...), 
+    secondary_subaccount_email: str = Form(default=""), 
+    telegram_chat_id: str = Form(default=""),
+    session_token: Optional[str] = Cookie(None)
+):
     user_email = get_current_user(session_token)
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
@@ -740,7 +766,7 @@ async def update_trading_config(trading_mode: str = Form(...), binance_api_key: 
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    if user_email == "ericksosa1552@gmail.com":
+    if user_email == ADMIN_EMAIL:
         cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
         cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_api_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_api_key.strip(), binance_api_key.strip()))
         cursor.execute("INSERT INTO settings (key, value) VALUES ('binance_secret_key', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (binance_secret_key.strip(), binance_secret_key.strip()))
@@ -748,9 +774,9 @@ async def update_trading_config(trading_mode: str = Form(...), binance_api_key: 
     else:
         cursor.execute("""
             UPDATE users 
-            SET binance_api_key = %s, binance_secret_key = %s, trading_mode = %s, secondary_email = %s 
+            SET binance_api_key = %s, binance_secret_key = %s, trading_mode = %s, secondary_email = %s, telegram_chat_id = %s 
             WHERE email = %s
-        """, (binance_api_key.strip(), binance_secret_key.strip(), trading_mode, secondary_subaccount_email.strip(), user_email))
+        """, (binance_api_key.strip(), binance_secret_key.strip(), trading_mode, secondary_subaccount_email.strip(), telegram_chat_id.strip(), user_email))
 
     conn.commit()
     cursor.close()
