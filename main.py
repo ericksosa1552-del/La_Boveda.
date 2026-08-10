@@ -13,7 +13,7 @@ from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-app = FastAPI(title="La Bóveda", version="5.1")
+app = FastAPI(title="La Bóveda", version="5.2")
 
 templates = Jinja2Templates(directory="templates")
 
@@ -31,17 +31,22 @@ def obtener_hora_local():
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:TU_CONTRASEÑA@TU_HOST:5432/postgres")
 
+# Credenciales de Telegram leídas directamente desde el entorno de Render (Para el Admin y Bot Token global de usuarios)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "8536842251")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 bot_status = {
     "is_operating": False,
     "mode": "demo"
 }
 
-def send_telegram_alert(message: str, chat_id: Optional[str] = None):
-    target_chat_id = chat_id if chat_id else TELEGRAM_CHAT_ID
-    if not TELEGRAM_BOT_TOKEN or not target_chat_id:
+def send_telegram_alert(message: str, target_chat_id: Optional[str] = None):
+    """Envía la alerta de Telegram de forma individualizada.
+       Si se le pasa un target_chat_id (el del usuario), usa ese. 
+       Si no, usa el chat_id por defecto de Render (el tuyo como admin).
+    """
+    chat_to_use = target_chat_id if target_chat_id else TELEGRAM_CHAT_ID
+    if not TELEGRAM_BOT_TOKEN or not chat_to_use:
         return
      
     formatted_message = (
@@ -55,7 +60,7 @@ def send_telegram_alert(message: str, chat_id: Optional[str] = None):
      
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
-        "chat_id": target_chat_id, 
+        "chat_id": chat_to_use, 
         "text": formatted_message, 
         "parse_mode": "HTML"
     }
@@ -82,7 +87,8 @@ def init_db():
             amount REAL,
             status TEXT,
             profit_loss REAL,
-            market_pattern_id TEXT
+            market_pattern_id TEXT,
+            user_email TEXT DEFAULT ''
         )
     ''')
     cursor.execute('''
@@ -98,25 +104,6 @@ def init_db():
     cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', 'false') ON CONFLICT (key) DO NOTHING")
     cursor.execute("INSERT INTO settings (key, value) VALUES ('secondary_subaccount_email', '') ON CONFLICT (key) DO NOTHING")
      
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ai_learning_memory (
-            id SERIAL PRIMARY KEY,
-            pattern_hash TEXT UNIQUE,
-            success_count INTEGER,
-            failure_count INTEGER,
-            last_updated TEXT,
-            weight_adjustment REAL
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ai_reasoning_logs (
-            id SERIAL PRIMARY KEY,
-            timestamp TEXT,
-            symbol TEXT,
-            decision_context TEXT,
-            confidence_score REAL
-        )
-    ''')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
@@ -217,25 +204,45 @@ def transfer_profits_to_secondary(api_key: str, secret_key: str, subaccount_emai
     except Exception as e:
         return False, f"Excepción de red al transferir: {str(e)}"
 
-def execute_automated_trade():
+def execute_automated_trade(target_user_email: Optional[str] = None):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
          
-        cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
-        es_row = cursor.fetchone()
-        if es_row and es_row['value'].lower() == 'true':
-            cursor.close()
-            conn.close()
-            return
+        # Si no se especifica usuario, por defecto opera el admin
+        exec_user = target_user_email if target_user_email else ADMIN_EMAIL
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-        mode_row = cursor.fetchone()
-        mode = mode_row['value'] if mode_row else "demo"
+        if exec_user == ADMIN_EMAIL:
+            cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
+            es_row = cursor.fetchone()
+            if es_row and es_row['value'].lower() == 'true':
+                cursor.close()
+                conn.close()
+                return
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
-        cap_row = cursor.fetchone()
-        capital_ceiling = float(cap_row['value']) if cap_row else 100.0
+            cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
+            mode_row = cursor.fetchone()
+            mode = mode_row['value'] if mode_row else "demo"
+
+            cursor.execute("SELECT value FROM settings WHERE key = 'capital_ceiling'")
+            cap_row = cursor.fetchone()
+            capital_ceiling = float(cap_row['value']) if cap_row else 100.0
+
+            target_telegram_chat = TELEGRAM_CHAT_ID
+        else:
+            cursor.execute("SELECT emergency_stop, trading_mode, capital_ceiling, telegram_chat_id FROM users WHERE email = %s", (exec_user,))
+            u_data = cursor.fetchone()
+            if not u_data:
+                cursor.close()
+                conn.close()
+                return
+            if str(u_data['emergency_stop']).lower() == 'true':
+                cursor.close()
+                conn.close()
+                return
+            mode = u_data['trading_mode'] or "demo"
+            capital_ceiling = float(u_data['capital_ceiling'] or 100.0)
+            target_telegram_chat = u_data['telegram_chat_id']
 
         cursor.close()
         conn.close()
@@ -265,34 +272,25 @@ def execute_automated_trade():
             status = "AJUSTADA (CONTROLADA)"
 
         timestamp = obtener_hora_local()
-        pattern_id = hashlib.sha256(f"{symbol}{timestamp}".encode()).hexdigest()[:10]
+        pattern_id = hashlib.sha256(f"{symbol}{timestamp}{exec_user}".encode()).hexdigest()[:10]
 
         confidence_score = round(random.uniform(75.0, 98.5), 2)
-        decision_context = f"Análisis volumétrico y de order book favorable en {symbol}. Desviación de precio dentro del margen óptimo de entrada con ponderación de riesgo adaptativa."
 
         conn = get_db_connection()
         cursor = conn.cursor()
          
         cursor.execute('''
-            INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ''', (timestamp, mode, symbol, action, price, amount, status, profit_loss, pattern_id))
-         
-        cursor.execute('''
-            INSERT INTO ai_reasoning_logs (timestamp, symbol, decision_context, confidence_score)
-            VALUES (%s, %s, %s, %s)
-        ''', (timestamp, symbol, decision_context, confidence_score))
+            INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, market_pattern_id, user_email)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (timestamp, mode, symbol, action, price, amount, status, profit_loss, pattern_id, exec_user))
          
         conn.commit()
-        
-        cursor.execute("SELECT telegram_chat_id FROM users WHERE telegram_chat_id IS NOT NULL AND telegram_chat_id != ''")
-        users_with_telegram = cursor.fetchall()
-
         cursor.close()
         conn.close()
 
         alert_msg = (
             f"🚀 <b>Operación Ejecutada Automática ({mode.upper()})</b>\n"
+            f"• <b>Usuario:</b> {exec_user}\n"
             f"• <b>Par:</b> {symbol}\n"
             f"• <b>Acción:</b> {action}\n"
             f"• <b>Monto (Riesgo 1%):</b> ${amount} USDT\n"
@@ -301,11 +299,8 @@ def execute_automated_trade():
             f"• <b>Confianza IA:</b> {confidence_score}%"
         )
          
-        if users_with_telegram:
-            for u in users_with_telegram:
-                send_telegram_alert(alert_msg, chat_id=u['telegram_chat_id'])
-        else:
-            send_telegram_alert(alert_msg)
+        # Envía la alerta exclusivamente al Chat ID correspondiente (al usuario o al admin)
+        send_telegram_alert(alert_msg, target_telegram_chat)
 
     except Exception as e:
         print(f"Error en ejecución automática: {e}")
@@ -316,43 +311,21 @@ async def cron_ping():
         conn = get_db_connection()
         cursor = conn.cursor()
          
-        cursor.execute("SELECT value FROM settings WHERE key = 'emergency_stop'")
-        es_row = cursor.fetchone()
-        if es_row and es_row['value'].lower() == 'true':
-            cursor.close()
-            conn.close()
-            return {"status": "standby_emergency", "message": "Ping recibido. Servidor activo pero detenido por PARO DE EMERGENCIA (Kill Switch)."}
+        # Ejecutar simulación automática global para admin y usuarios activos
+        execute_automated_trade(ADMIN_EMAIL)
 
-        cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
-        mode_row = cursor.fetchone()
-        trading_mode = mode_row['value'] if mode_row else "demo"
-
-        cursor.execute("SELECT value FROM settings WHERE key = 'binance_api_key'")
-        ak_row = cursor.fetchone()
-        binance_api_key = ak_row['value'] if ak_row else ""
-
-        cursor.execute("SELECT value FROM settings WHERE key = 'binance_secret_key'")
-        sk_row = cursor.fetchone()
-        binance_secret_key = sk_row['value'] if sk_row else ""
-         
+        cursor.execute("SELECT email FROM users WHERE is_blocked = 0")
+        users = cursor.fetchall()
         cursor.close()
         conn.close()
 
-        is_valid = verify_binance_credentials(binance_api_key, binance_secret_key, trading_mode)
-         
-        if is_valid:
-            bot_status["mode"] = trading_mode
-            bot_status["is_operating"] = True
-             
-            execute_automated_trade()
-             
-            return {"status": "success", "message": "Ping recibido. Servidor activo y operación automática ejecutada."}
-        else:
-            bot_status["is_operating"] = False
-            return {"status": "alive_standby", "message": "Ping recibido. Servidor activo (En espera de llaves válidas para operar)."}
+        for u in users:
+            execute_automated_trade(u['email'])
+
+        return {"status": "success", "message": "Ping recibido y ciclos automáticos ejecutados para todos los usuarios."}
              
     except Exception as e:
-        return {"status": "alive_forced", "message": f"Ping recibido y servidor mantenido vivo. Nota: {str(e)}"}
+        return {"status": "alive_forced", "message": f"Ping recibido con excepciones: {str(e)}"}
 
 def get_current_user(session_token: Optional[str]) -> Optional[str]:
     if not session_token:
@@ -405,7 +378,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
         conn = get_db_connection()
         cursor = conn.cursor()
          
-        cursor.execute("SELECT COUNT(*), SUM(profit_loss) FROM operations")
+        cursor.execute("SELECT COUNT(*), SUM(profit_loss) FROM operations WHERE user_email = %s", (user_email,))
         row_stats = cursor.fetchone()
         total_ops = row_stats['count'] if row_stats and row_stats['count'] is not None else 0
         total_pnl = round(row_stats['sum'], 2) if row_stats and row_stats['sum'] is not None else 0.00
@@ -435,7 +408,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
             sec_row = cursor.fetchone()
             secondary_email = sec_row['value'] if sec_row else ""
 
-            telegram_chat_id = TELEGRAM_CHAT_ID
+            telegram_chat_id = TELEGRAM_CHAT_ID if TELEGRAM_CHAT_ID else ""
         else:
             cursor.execute("SELECT capital_ceiling, trading_mode, binance_api_key, binance_secret_key, emergency_stop, secondary_email, telegram_chat_id FROM users WHERE email = %s", (user_email,))
             u_data = cursor.fetchone()
@@ -448,10 +421,10 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
                 secondary_email = u_data['secondary_email'] or ""
                 telegram_chat_id = u_data['telegram_chat_id'] or ""
 
-        cursor.execute("SELECT timestamp, symbol, action, amount, status, profit_loss FROM operations ORDER BY id ASC")
+        cursor.execute("SELECT timestamp, symbol, action, amount, status, profit_loss FROM operations WHERE user_email = %s ORDER BY id ASC", (user_email,))
         ops_all = cursor.fetchall()
          
-        cursor.execute("SELECT symbol, action, amount, status, profit_loss FROM operations ORDER BY id DESC LIMIT 200")
+        cursor.execute("SELECT symbol, action, amount, status, profit_loss FROM operations WHERE user_email = %s ORDER BY id DESC LIMIT 200", (user_email,))
         ops = cursor.fetchall()
          
         cursor.close()
@@ -563,7 +536,7 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
     if not user_email:
         return RedirectResponse(url="/?msg=Debe%20iniciar%20sesión", status_code=303)
 
-    execute_automated_trade()
+    execute_automated_trade(user_email)
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/secure-profits")
@@ -591,13 +564,16 @@ async def secure_profits(amount_to_secure: float = Form(...), session_token: Opt
         cursor.execute("SELECT value FROM settings WHERE key = 'trading_mode'")
         mode_row = cursor.fetchone()
         mode = mode_row['value'] if mode_row else "demo"
+
+        target_chat = TELEGRAM_CHAT_ID
     else:
-        cursor.execute("SELECT binance_api_key, binance_secret_key, secondary_email, trading_mode FROM users WHERE email = %s", (user_email,))
+        cursor.execute("SELECT binance_api_key, binance_secret_key, secondary_email, trading_mode, telegram_chat_id FROM users WHERE email = %s", (user_email,))
         u_data = cursor.fetchone()
         api_key = u_data['binance_api_key'] if u_data else ""
         secret_key = u_data['binance_secret_key'] if u_data else ""
         sub_email = u_data['secondary_email'] if u_data else ""
         mode = u_data['trading_mode'] if u_data else "demo"
+        target_chat = u_data['telegram_chat_id'] if u_data else None
 
     cursor.close()
     conn.close()
@@ -605,7 +581,7 @@ async def secure_profits(amount_to_secure: float = Form(...), session_token: Opt
     success, message = transfer_profits_to_secondary(api_key, secret_key, sub_email, amount_to_secure, mode)
 
     if success:
-        send_telegram_alert(f"🔒 <b>¡Ganancias Aseguradas con Éxito!</b>\n• Se han transferido <b>${amount_to_secure} USDT</b> a la cuenta secundaria de Binance.")
+        send_telegram_alert(f"🔒 <b>¡Ganancias Aseguradas con Éxito!</b>\n• Se han transferido <b>${amount_to_secure} USDT</b> a la cuenta secundaria de Binance.", target_chat)
         return RedirectResponse(url="/?msg=Ganancias%20aseguradas%20correctamente", status_code=303)
     else:
         return RedirectResponse(url=f"/?msg=Error%20al%20asegurar:%20{message}", status_code=303)
@@ -625,21 +601,23 @@ async def toggle_emergency_stop(session_token: Optional[str] = Cookie(None)):
         current_val = row['value'] if row else "false"
         new_val = "false" if current_val.lower() == "true" else "true"
         cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (new_val, new_val))
+        target_chat = TELEGRAM_CHAT_ID
     else:
-        cursor.execute("SELECT emergency_stop FROM users WHERE email = %s", (user_email,))
+        cursor.execute("SELECT emergency_stop, telegram_chat_id FROM users WHERE email = %s", (user_email,))
         row = cursor.fetchone()
         current_val = row['emergency_stop'] if row else "false"
         new_val = "false" if current_val.lower() == "true" else "true"
         cursor.execute("UPDATE users SET emergency_stop = %s WHERE email = %s", (new_val, user_email))
+        target_chat = row['telegram_chat_id'] if row else None
 
     conn.commit()
     cursor.close()
     conn.close()
 
     if new_val == "true":
-        send_telegram_alert("⚠️ <b>¡PARO DE EMERGENCIA (KILL SWITCH) ACTIVADO!</b> Se han suspendido todas las operaciones automáticas del sistema.")
+        send_telegram_alert("⚠️ <b>¡PARO DE EMERGENCIA (KILL SWITCH) ACTIVADO!</b> Se han suspendido todas las operaciones automáticas del sistema.", target_chat)
     else:
-        send_telegram_alert("✅ <b>Paro de emergencia desactivado.</b> El sistema ha reanudado su disponibilidad operativa.")
+        send_telegram_alert("✅ <b>Paro de emergencia desactivado.</b> El sistema ha reanudado su disponibilidad operativa.", target_chat)
 
     return RedirectResponse(url="/", status_code=303)
 
@@ -777,4 +755,4 @@ async def update_trading_config(
     conn.commit()
     cursor.close()
     conn.close()
-    return RedirectResponse(url="/?msg=Configuracion%20actualizada%20correctamente", status_code=303)
+    return RedirectResponse(url="/", status_code=303)
