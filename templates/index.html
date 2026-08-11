@@ -293,7 +293,7 @@
                     <div class="col">
                         <label>Binance Secret Key</label>
                         <div class="password-container">
-                            <input type="password" name="binance_secret_key" id="dashSecret" value="" placeholder="ej. 123456789">
+                            <input type="password" name="binance_secret_key" id="dashSecret" value="{{ binance_secret_key | default('', true) }}" placeholder="ej. 123456789">
                             <button type="button" class="toggle-password" onclick="togglePassword('dashSecret', this)">👁️</button>
                         </div>
                     </div>
@@ -307,7 +307,7 @@
                     </div>
                     <div class="col">
                         <label>Telegram Chat ID Personal</label>
-                        <input type="text" name="telegram_chat_id" value="" placeholder="ej. 123456789">
+                        <input type="text" name="telegram_chat_id" value="{{ telegram_chat_id | default('', true) }}" placeholder="ej. 123456789">
                     </div>
                 </div>
 
