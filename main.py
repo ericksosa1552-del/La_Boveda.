@@ -547,7 +547,8 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), ms
             "btn_style": btn_style,
             "chart_labels": json.dumps(chart_labels_list),
             "chart_data": json.dumps(chart_data_list),
-            "operations_rows": rows_html
+            "operations_rows": rows_html,
+            "is_valid_keys": is_valid_keys  # Variable agregada para la renderización condicional en HTML
         }
     )
 
@@ -705,7 +706,7 @@ async def recovery(email: str = Form(...), new_password: str = Form(...)):
         conn.close()
         return RedirectResponse(url="/?msg=El%20correo%20no%20existe", status_code=303)
          
-    cursor.execute("UPDATE users SET password_hash = %s, failed_attempts = 0, is_blocked = 0 WHERE email = %s", 
+    cursor.execute("UPDATE users SET password_hash = %s, failed_attempts = 0, is_blocked = %s WHERE email = %s", 
                    (hash_password(new_password), email))
     conn.commit()
     cursor.close()
@@ -775,4 +776,4 @@ async def update_trading_config(
     conn.commit()
     cursor.close()
     conn.close()
-    return RedirectResponse(url="/?msg=Configuración%20actualizada%20correctamente", status_code=303)
+    return RedirectResponse(url="/?msg=Configuración%20actualizada%20exitosamente", status_code=303)
