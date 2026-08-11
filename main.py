@@ -67,44 +67,42 @@ init_db()
 
 def hash_password(password: str) -> str: return hashlib.sha256(password.encode()).hexdigest()
 
-def verify_binance_credentials(api_key: str, secret_key: str, mode: str) -> bool:
-    if not api_key or not secret_key: return False
-    if mode == "demo": return len(api_key) > 20 and len(secret_key) > 20
-    return True # Simplificado para el ejemplo
-
 def execute_automated_trade(target_user_email: Optional[str] = None):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         exec_user = target_user_email if target_user_email else ADMIN_EMAIL
         
-        # Obtención de configs
+        # Obtención de configs corregida: Se selecciona 'key' y 'value' explícitamente
         if exec_user == ADMIN_EMAIL:
-            cursor.execute("SELECT value FROM settings WHERE key IN ('emergency_stop', 'trading_mode', 'capital_ceiling')")
+            cursor.execute("SELECT key, value FROM settings WHERE key IN ('emergency_stop', 'trading_mode', 'capital_ceiling')")
             data = {r['key']: r['value'] for r in cursor.fetchall()}
             mode = data.get('trading_mode', 'demo')
             capital_ceiling = float(data.get('capital_ceiling', 100.0))
-            if data.get('emergency_stop') == 'true': return
+            if data.get('emergency_stop') == 'true': 
+                cursor.close()
+                conn.close()
+                return
         else:
             cursor.execute("SELECT emergency_stop, trading_mode, capital_ceiling FROM users WHERE email = %s", (exec_user,))
             u = cursor.fetchone()
-            if not u or str(u['emergency_stop']).lower() == 'true': return
+            if not u or str(u['emergency_stop']).lower() == 'true': 
+                cursor.close()
+                conn.close()
+                return
             mode = u['trading_mode']
             capital_ceiling = float(u['capital_ceiling'])
         
         cursor.close()
         conn.close()
 
-        # --- SIMULACIÓN DE PAR Y PnL PRIMERO ---
-        par = random.choice([{"simbolo": "BTCUSDT", "nombre": "Precio BTC", "base": 64532.57}, {"simbolo": "SOLUSDT", "nombre": "Precio SOL", "base": 184.50}])
+        # --- SIMULACIÓN DE PAR Y PnL ---
+        par = random.choice([{"simbolo": "BTCUSDT", "base": 64532.57}, {"simbolo": "SOLUSDT", "base": 184.50}])
         price = par["base"] + round(random.uniform(-5.0, 5.0), 2)
         amount = round(capital_ceiling * 0.01, 2)
         profit_loss = round(random.uniform(3.0, 6.0), 2) if random.random() > 0.3 else round(random.uniform(-0.5, -0.1), 2)
         
-        # --- EL CEREBRO IA EVOLUCIONA CON EL RESULTADO DE ESTE TRADE ---
         ai_brain.analyze_and_evolve(mode, last_trade_profit=profit_loss)
-        
-        # --- CONFIANZA IA ---
         confidence_score = ai_brain.evaluate_signal_confidence(random.uniform(75.0, 95.0))
 
         conn = get_db_connection()
@@ -124,6 +122,3 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
 async def cron_ping():
     execute_automated_trade(ADMIN_EMAIL)
     return {"status": "success"}
-
-# --- RUTAS RESTO DE LA APP (login, register, home, etc siguen igual) ---
-# (Nota: Puedes dejar el resto de tu código original debajo de este punto)
