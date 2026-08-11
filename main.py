@@ -95,13 +95,14 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
         cursor.close()
         conn.close()
 
-        # --- AQUÍ USA EL CEREBRO IA ---
-        ai_brain.analyze_and_evolve(mode)
-        
+        # --- SIMULACIÓN DE PAR Y PnL PRIMERO ---
         par = random.choice([{"simbolo": "BTCUSDT", "nombre": "Precio BTC", "base": 64532.57}, {"simbolo": "SOLUSDT", "nombre": "Precio SOL", "base": 184.50}])
         price = par["base"] + round(random.uniform(-5.0, 5.0), 2)
         amount = round(capital_ceiling * 0.01, 2)
         profit_loss = round(random.uniform(3.0, 6.0), 2) if random.random() > 0.3 else round(random.uniform(-0.5, -0.1), 2)
+        
+        # --- EL CEREBRO IA EVOLUCIONA CON EL RESULTADO DE ESTE TRADE ---
+        ai_brain.analyze_and_evolve(mode, last_trade_profit=profit_loss)
         
         # --- CONFIANZA IA ---
         confidence_score = ai_brain.evaluate_signal_confidence(random.uniform(75.0, 95.0))
