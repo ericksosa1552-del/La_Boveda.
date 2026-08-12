@@ -55,7 +55,23 @@ def init_db():
         cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', '100.0') ON CONFLICT (key) DO NOTHING")
         cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', 'demo') ON CONFLICT (key) DO NOTHING")
         cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', 'false') ON CONFLICT (key) DO NOTHING")
-        cursor.execute('''CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, failed_attempts INTEGER DEFAULT 0, is_blocked INTEGER DEFAULT 0, binance_api_key TEXT DEFAULT '', binance_secret_key TEXT DEFAULT '', trading_mode TEXT DEFAULT 'demo', secondary_email TEXT DEFAULT '', capital_ceiling REAL DEFAULT 100.0, emergency_stop TEXT DEFAULT 'false', telegram_chat_id TEXT DEFAULT '')''')
+        
+        # Crear tabla users base si no existe
+        cursor.execute('''CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, failed_attempts INTEGER DEFAULT 0, is_blocked INTEGER DEFAULT 0)''')
+        
+        # Asegurar columnas por si la tabla ya existía sin ellas en Render
+        columnas_a_agregar = [
+            ("binance_api_key", "TEXT DEFAULT ''"),
+            ("binance_secret_key", "TEXT DEFAULT ''"),
+            ("trading_mode", "TEXT DEFAULT 'demo'"),
+            ("secondary_email", "TEXT DEFAULT ''"),
+            ("capital_ceiling", "REAL DEFAULT 100.0"),
+            ("emergency_stop", "TEXT DEFAULT 'false'"),
+            ("telegram_chat_id", "TEXT DEFAULT ''")
+        ]
+        for col_name, col_def in columnas_a_agregar:
+            cursor.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_def}")
+
         cursor.execute('''CREATE TABLE IF NOT EXISTS sessions (session_token TEXT PRIMARY KEY, email TEXT, created_at TEXT)''')
         conn.commit()
         cursor.close()
@@ -394,7 +410,6 @@ async def update_trading_config(
         if email == ADMIN_EMAIL:
             cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
         
-        # Convertir None a cadena vacía para evitar errores al guardar en la base de datos
         sec_email_val = secondary_subaccount_email if secondary_subaccount_email else ""
         tel_chat_val = telegram_chat_id if telegram_chat_id else ""
 
