@@ -73,7 +73,6 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
         cursor = conn.cursor()
         exec_user = target_user_email if target_user_email else ADMIN_EMAIL
         
-        # Obtención de configs corregida: Se selecciona 'key' y 'value' explícitamente
         if exec_user == ADMIN_EMAIL:
             cursor.execute("SELECT key, value FROM settings WHERE key IN ('emergency_stop', 'trading_mode', 'capital_ceiling')")
             data = {r['key']: r['value'] for r in cursor.fetchall()}
@@ -124,8 +123,21 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    # Corrección aplicada para evitar conflictos de tipos con el diccionario en versiones nuevas de Jinja2
-    return templates.TemplateResponse(request, "index.html")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM settings")
+        settings_data = {r['key']: r['value'] for r in cursor.fetchall()}
+        cursor.close()
+        conn.close()
+    except Exception:
+        settings_data = {"emergency_stop": "false", "trading_mode": "demo", "capital_ceiling": "100.0"}
+
+    return templates.TemplateResponse(request, "index.html", {
+        "emergency_stop": settings_data.get("emergency_stop", "false"),
+        "trading_mode": settings_data.get("trading_mode", "demo"),
+        "capital_ceiling": settings_data.get("capital_ceiling", "100.0")
+    })
 
 @app.get("/cron-ping")
 async def cron_ping():
