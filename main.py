@@ -229,6 +229,15 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
             btn_disabled = ""
             btn_style = ""
 
+        # Lógica para habilitar/deshabilitar el botón de apartar ganancias
+        profit_btn_active = (str(trading_mode).lower() == 'live' and api_keys_validated)
+        if not profit_btn_active:
+            profit_btn_disabled = "disabled"
+            profit_btn_style = "opacity: 0.5; cursor: not-allowed;"
+        else:
+            profit_btn_disabled = ""
+            profit_btn_style = ""
+
         template_data = {
             "request": request,
             "auth_display": auth_display,
@@ -259,6 +268,8 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
             "api_keys_validated": api_keys_validated,
             "btn_disabled": btn_disabled,
             "btn_style": btn_style,
+            "profit_btn_disabled": profit_btn_disabled,
+            "profit_btn_style": profit_btn_style,
             "chart_labels": json.dumps(chart_labels),
             "chart_data": json.dumps(chart_data_vals),
             "operations_rows": operations_rows
@@ -294,6 +305,8 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
             "api_keys_validated": False,
             "btn_disabled": "disabled",
             "btn_style": "opacity: 0.5; cursor: not-allowed;",
+            "profit_btn_disabled": "disabled",
+            "profit_btn_style": "opacity: 0.5; cursor: not-allowed;",
             "chart_labels": json.dumps(["Inicio"]),
             "chart_data": json.dumps([100.0]),
             "operations_rows": ""
