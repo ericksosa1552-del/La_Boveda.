@@ -66,6 +66,11 @@
             width: 100%; padding: 10px; background: #111827; border: 1px solid #4b5563;
             color: white; border-radius: 6px; box-sizing: border-box; font-size: 14px; margin-bottom: 12px;
         }
+        input:disabled, select:disabled {
+            background-color: #1f2937;
+            color: #6b7280;
+            cursor: not-allowed;
+        }
 
         .password-container { position: relative; }
         .password-container input { padding-right: 40px; }
@@ -88,6 +93,13 @@
             transition: background 0.2s; text-align: center;
         }
         .btn-sim:hover { background-color: #059669; }
+
+        .btn-profit {
+            width: 100%; background-color: #3b82f6; color: white; border: none; padding: 12px;
+            border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer;
+            transition: background 0.2s; text-align: center; margin-bottom: 15px;
+        }
+        .btn-profit:hover { background-color: #2563eb; }
 
         .btn-logout {
             background-color: #ef4444; color: white; border: none; padding: 6px 12px;
@@ -261,7 +273,7 @@
                 <label for="capital">Ajustar Techo de Capital (USDT)</label>
                 <div class="row" style="align-items: center; margin-top: 5px;">
                     <div class="col" style="flex: 3; min-width: 180px;">
-                        <input type="number" step="0.1" id="capital" name="capital" value="{{ capital_ceiling }}" style="margin-bottom: 0;">
+                        <input type="number" step="0.1" id="capital" name="capital" value="{{ capital_ceiling }}" style="margin-bottom: 0;" {{ inputs_disabled }}>
                     </div>
                     <div class="col" style="flex: 1; min-width: 90px;">
                         <button type="submit" class="btn-gold" style="width: 100%;">Guardar</button>
@@ -276,7 +288,7 @@
                 <div class="row">
                     <div class="col" style="width: 100%;">
                         <label>Modo de Operación</label>
-                        <select name="trading_mode">
+                        <select name="trading_mode" {{ inputs_disabled }}>
                             <option value="demo" {{ demo_selected }}>Demo / Testnet (Simulación)</option>
                             <option value="live" {{ live_selected }}>Real / Live (Binance Dinero Real)</option>
                         </select>
@@ -286,34 +298,52 @@
                     <div class="col">
                         <label>Binance API Key</label>
                         <div class="password-container">
-                            <input type="password" name="binance_api_key" id="dashApiKey" value="{{ binance_api_key }}" placeholder="ej. 123456789">
+                            <input type="password" name="binance_api_key" id="dashApiKey" value="{{ binance_api_key }}" placeholder="ej. 123456789" {{ inputs_disabled }}>
                             <button type="button" class="toggle-password" onclick="togglePassword('dashApiKey', this)">👁️</button>
                         </div>
                     </div>
                     <div class="col">
                         <label>Binance Secret Key</label>
                         <div class="password-container">
-                            <input type="password" name="binance_secret_key" id="dashSecret" value="{{ binance_secret_key | default('', true) }}" placeholder="ej. 123456789">
+                            <input type="password" name="binance_secret_key" id="dashSecret" value="{{ binance_secret_key | default('', true) }}" placeholder="ej. 123456789" {{ inputs_disabled }}>
                             <button type="button" class="toggle-password" onclick="togglePassword('dashSecret', this)">👁️</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Campos integrados para Subcuenta y Telegram Chat ID corregidos -->
+                <!-- Campos de Subcuenta Secundaria y Telegram protegidos con el sistema de visualización y bloqueo -->
                 <div class="row" style="margin-top: 5px;">
                     <div class="col">
                         <label>Correo Subcuenta Secundaria</label>
-                        <input type="email" name="secondary_subaccount_email" value="{{ secondary_subaccount_email }}" placeholder="ej. 123456789">
+                        <div class="password-container">
+                            <input type="password" name="secondary_subaccount_email" id="dashSubEmail" value="{{ secondary_subaccount_email }}" placeholder="ej. subcuenta@ejemplo.com" {{ inputs_disabled }}>
+                            <button type="button" class="toggle-password" onclick="togglePassword('dashSubEmail', this)">👁️</button>
+                        </div>
                     </div>
                     <div class="col">
                         <label>Telegram Chat ID Personal</label>
-                        <input type="text" name="telegram_chat_id" value="{{ telegram_chat_id | default('', true) }}" placeholder="ej. 123456789">
+                        <div class="password-container">
+                            <input type="password" name="telegram_chat_id" id="dashTgId" value="{{ telegram_chat_id | default('', true) }}" placeholder="ej. 123456789" {{ inputs_disabled }}>
+                            <button type="button" class="toggle-password" onclick="togglePassword('dashTgId', this)">👁️</button>
+                        </div>
                     </div>
                 </div>
 
-                <button type="submit" class="btn-gold" style="margin-top: 5px;">Guardar Configuración y Validar Llaves</button>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button type="submit" class="btn-gold" style="flex: 2;">Guardar Configuración y Validar Llaves</button>
+                    <button type="button" onclick="toggleInputsLock()" class="btn-gold" style="flex: 1; background-color: #4b5563; color: white;">🔓 Bloquear / Desbloquear</button>
+                </div>
             </form>
         </div>
+
+        <!-- Botón condicional de Apartar/Separar Ganancias al validar llaves -->
+        {% if api_keys_validated %}
+        <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 10px;">
+            <form action="/separate-profits" method="post">
+                <button type="submit" class="btn-profit">💰 Apartar / Separar Ganancias de Operación</button>
+            </form>
+        </div>
+        {% endif %}
 
         <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 20px;">
             <form action="/run-bot" method="post">
@@ -330,6 +360,7 @@
             <table id="historyTable">
                 <thead>
                     <tr>
+                        <th>N°</th>
                         <th>Par</th>
                         <th>Tipo</th>
                         <th>Monto (Riesgo 1%)</th>
@@ -369,12 +400,30 @@
             }
         }
 
-        // Inicialización y configuración del gráfico de Curva de Capital con Chart.js
+        function toggleInputsLock() {
+            const inputs = document.querySelectorAll('#dashboardBox input[type="password"], #dashboardBox input[type="text"], #dashboardBox input[type="number"], #dashboardBox select');
+            inputs.forEach(input => {
+                // No bloquear campos de login o elementos generales fuera de configuración si los hubiera
+                if(input.name && input.name !== 'email' && input.name !== 'password') {
+                    input.disabled = !input.disabled;
+                }
+            });
+        }
+
+        // Inicialización y configuración del gráfico de Curva de Capital con detección de tendencias (Subidas/Bajadas)
         document.addEventListener("DOMContentLoaded", function() {
             const ctx = document.getElementById('capitalChart').getContext('2d');
             
             const chartLabels = {{ chart_labels | default("['Inicio', 'Op 1', 'Op 2', 'Op 3']", true) | safe }};
             const chartData = {{ chart_data | default("[100, 103.5, 101.8, 105.2]", true) | safe }};
+
+            // Evaluar tendencia general o último movimiento para determinar color (Verde ganancia / Rojo caída)
+            let isPositive = true;
+            if (chartData.length >= 2) {
+                isPositive = chartData[chartData.length - 1] >= chartData[0];
+            }
+            const lineColor = isPositive ? '#34d399' : '#f87171';
+            const fillColor = isPositive ? 'rgba(52, 211, 153, 0.1)' : 'rgba(248, 113, 113, 0.1)';
 
             new Chart(ctx, {
                 type: 'line',
@@ -383,8 +432,8 @@
                     datasets: [{
                         label: 'Balance (USDT)',
                         data: chartData,
-                        borderColor: '#34d399',
-                        backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                        borderColor: lineColor,
+                        backgroundColor: fillColor,
                         borderWidth: 2,
                         fill: true,
                         tension: 0.3,
@@ -425,6 +474,22 @@
             const fecha = new Date().toLocaleString('es-ES');
             doc.text("Generado el: " + fecha, 14, 27);
             
+            // Inyectar numeración automática 1, 2, 3... en las filas de la tabla para el PDF
+            const tableElement = document.getElementById('historyTable');
+            const rows = tableElement.querySelectorAll('tbody tr');
+            rows.forEach((row, index) => {
+                if (!row.hasAttribute('data-numbered')) {
+                    const firstCell = row.cells[0];
+                    if (firstCell && !firstCell.classList.contains('row-index')) {
+                        const newCell = document.createElement('td');
+                        newCell.textContent = (index + 1);
+                        newCell.className = 'row-index';
+                        row.insertBefore(newCell, firstCell);
+                        row.setAttribute('data-numbered', 'true');
+                    }
+                }
+            });
+
             doc.autoTable({
                 html: '#historyTable',
                 startY: 35,
