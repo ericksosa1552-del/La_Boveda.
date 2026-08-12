@@ -17,7 +17,7 @@ from psycopg2.extras import RealDictCursor
 from ai_brain import AIBrain
 ai_brain = AIBrain()
 
-app = FastAPI(title="La Bóveda", version="5.1")
+app = FastAPI(title="La Bóveda", version="5.2")
 templates = Jinja2Templates(directory="templates")
 
 # ==========================================
@@ -50,17 +50,27 @@ def init_db():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('CREATE TABLE IF NOT EXISTS operations (id SERIAL PRIMARY KEY, timestamp TEXT, mode TEXT, symbol TEXT, action TEXT, price REAL, amount REAL, status TEXT, profit_loss REAL, market_pattern_id TEXT, user_email TEXT DEFAULT \'\')')
+        
+        # Crear tablas base si no existen
+        cursor.execute('CREATE TABLE IF NOT EXISTS operations (id SERIAL PRIMARY KEY)')
         cursor.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)')
         cursor.execute("INSERT INTO settings (key, value) VALUES ('capital_ceiling', '100.0') ON CONFLICT (key) DO NOTHING")
         cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', 'demo') ON CONFLICT (key) DO NOTHING")
         cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', 'false') ON CONFLICT (key) DO NOTHING")
         
-        # Crear tabla users base si no existe
         cursor.execute('''CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT, failed_attempts INTEGER DEFAULT 0, is_blocked INTEGER DEFAULT 0)''')
         
-        # Asegurar columnas por si la tabla ya existía sin ellas en Render
-        columnas_a_agregar = [
+        # Añadir todas las columnas necesarias a operations si no existen
+        ops_columns = [
+            ("timestamp", "TEXT"), ("mode", "TEXT"), ("symbol", "TEXT"), 
+            ("action", "TEXT"), ("price", "REAL"), ("amount", "REAL"), 
+            ("status", "TEXT"), ("profit_loss", "REAL"), ("market_pattern_id", "TEXT"), ("user_email", "TEXT DEFAULT ''")
+        ]
+        for col_name, col_def in ops_columns:
+            cursor.execute(f"ALTER TABLE operations ADD COLUMN IF NOT EXISTS {col_name} {col_def}")
+
+        # Añadir columnas necesarias a users por si ya existía sin ellas
+        users_columns = [
             ("binance_api_key", "TEXT DEFAULT ''"),
             ("binance_secret_key", "TEXT DEFAULT ''"),
             ("trading_mode", "TEXT DEFAULT 'demo'"),
@@ -69,7 +79,7 @@ def init_db():
             ("emergency_stop", "TEXT DEFAULT 'false'"),
             ("telegram_chat_id", "TEXT DEFAULT ''")
         ]
-        for col_name, col_def in columnas_a_agregar:
+        for col_name, col_def in users_columns:
             cursor.execute(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col_name} {col_def}")
 
         cursor.execute('''CREATE TABLE IF NOT EXISTS sessions (session_token TEXT PRIMARY KEY, email TEXT, created_at TEXT)''')
