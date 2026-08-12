@@ -124,8 +124,8 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    # Renderiza la plantilla principal index.html que está en la carpeta templates
-    return templates.TemplateResponse("index.html", {"request": request})
+    # Corrección aplicada para evitar conflictos de tipos con el diccionario en versiones nuevas de Jinja2
+    return templates.TemplateResponse(request, "index.html")
 
 @app.get("/cron-ping")
 async def cron_ping():
