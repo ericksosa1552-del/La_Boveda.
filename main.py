@@ -122,18 +122,29 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
 # ==========================================
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT key, value FROM settings")
-        settings_data = {r['key']: r['value'] for r in cursor.fetchall()}
-        cursor.close()
-        conn.close()
-    except Exception:
-        settings_data = {"emergency_stop": "false", "trading_mode": "demo", "capital_ceiling": "100.0"}
+async def home(request: Request, session_token: Optional[str] = Cookie(None)):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    logged_in = False
+    user_email = ""
+    
+    if session_token:
+        cursor.execute("SELECT email FROM sessions WHERE session_token = %s", (session_token,))
+        session = cursor.fetchone()
+        if session:
+            logged_in = True
+            user_email = session['email']
+
+    cursor.execute("SELECT key, value FROM settings")
+    settings_data = {r['key']: r['value'] for r in cursor.fetchall()}
+    cursor.close()
+    conn.close()
 
     return templates.TemplateResponse(request, "index.html", {
+        "request": request,
+        "logged_in": logged_in,
+        "user_email": user_email,
         "emergency_stop": settings_data.get("emergency_stop", "false"),
         "trading_mode": settings_data.get("trading_mode", "demo"),
         "capital_ceiling": settings_data.get("capital_ceiling", "100.0")
