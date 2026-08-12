@@ -82,9 +82,9 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
                 conn.close()
                 return
         else:
-            cursor.execute("SELECT emergency_stop, trading_mode, capital_ceiling FROM users WHERE email = %s", (exec_user,))
+            cursor.execute("SELECT emergency_stop, trading_mode, capital_ceiling, binance_api_key, binance_secret_key FROM users WHERE email = %s", (exec_user,))
             u = cursor.fetchone()
-            if not u or str(u['emergency_stop']).lower() == 'true': 
+            if not u or str(u['emergency_stop']).lower() == 'true' or not u['binance_api_key'] or not u['binance_secret_key']: 
                 cursor.close()
                 conn.close()
                 return
@@ -96,7 +96,7 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
 
         par = random.choice([{"simbolo": "BTCUSDT", "base": 64532.57}, {"simbolo": "SOLUSDT", "base": 184.50}])
         price = par["base"] + round(random.uniform(-5.0, 5.0), 2)
-        amount = round(capital_ceiling * 0.01, 2) # Riesgo estricto al 1%
+        amount = round(capital_ceiling * 0.01, 2)
         profit_loss = round(random.uniform(3.0, 6.0), 2) if random.random() > 0.3 else round(random.uniform(-0.5, -0.1), 2)
         
         ai_brain.analyze_and_evolve(mode, last_trade_profit=profit_loss)
@@ -138,14 +138,12 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
     cursor.execute("SELECT key, value FROM settings")
     settings_data = {r['key']: r['value'] for r in cursor.fetchall()}
 
-    # Configuración de visualización basada en si el usuario ha iniciado sesión
     if logged_in:
         auth_display = "none"
         dashboard_display = "block"
         body_align = "flex-start"
         auth_position = "absolute"
         
-        # Datos del usuario logueado o Admin
         is_admin = (user_data['email'] == ADMIN_EMAIL)
         capital_ceiling = user_data['capital_ceiling'] if not is_admin else float(settings_data.get("capital_ceiling", "100.0"))
         trading_mode = user_data['trading_mode'] if not is_admin else settings_data.get("trading_mode", "demo")
@@ -156,7 +154,7 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
         secondary_email = user_data.get('secondary_email', '')
         telegram_chat_id = user_data.get('telegram_chat_id', '')
 
-        # Validar si las llaves de Binance están ingresadas/validadas
+        # Validar si las llaves están presentes
         api_keys_validated = bool(binance_api_key and binance_secret_key)
 
         # Obtener operaciones del usuario
@@ -192,11 +190,21 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
             chart_labels = ["Inicio"]
             chart_data_vals = [capital_ceiling]
 
-        # Estado del motor
-        motor_active = (str(emergency_stop).lower() != 'true')
-        motor_status_text = "Operando con normalidad (IA Activa)" if motor_active else "Detenido por Paro de Emergencia"
-        badge_class = "badge-connected" if motor_active else "badge-error"
-        badge_text = "EN LÍNEA" if motor_active else "DETENIDO"
+        # CORRECCIÓN: El estado del motor ahora exige obligatoriamente que api_keys_validated sea True
+        motor_active = (str(emergency_stop).lower() != 'true' and api_keys_validated)
+        
+        if not api_keys_validated:
+            motor_status_text = "Detenido: Faltan API Keys de Binance"
+            badge_class = "badge-error"
+            badge_text = "DESCONECTADO"
+            btn_disabled = "disabled"
+            btn_style = "opacity: 0.5; cursor: not-allowed;"
+        else:
+            motor_status_text = "Operando con normalidad (IA Activa)" if motor_active else "Detenido por Paro de Emergencia"
+            badge_class = "badge-connected" if motor_active else "badge-error"
+            badge_text = "EN LÍNEA" if motor_active else "DETENIDO"
+            btn_disabled = ""
+            btn_style = ""
 
         template_data = {
             "request": request,
@@ -226,14 +234,13 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
             "telegram_chat_id": telegram_chat_id,
             "inputs_disabled": "disabled",
             "api_keys_validated": api_keys_validated,
-            "btn_disabled": "",
-            "btn_style": "",
+            "btn_disabled": btn_disabled,
+            "btn_style": btn_style,
             "chart_labels": json.dumps(chart_labels),
             "chart_data": json.dumps(chart_data_vals),
             "operations_rows": operations_rows
         }
     else:
-        # Vista de Autenticación por defecto
         template_data = {
             "request": request,
             "auth_display": "block",
@@ -427,7 +434,6 @@ async def toggle_emergency_stop(session_token: Optional[str] = Cookie(None)):
 
 @app.post("/separate-profits")
 async def separate_profits(session_token: Optional[str] = Cookie(None)):
-    # Lógica para apartar o transferir ganancias de operación a la subcuenta secundaria
     if not session_token: return RedirectResponse(url="/", status_code=303)
     return RedirectResponse(url="/?alert=Ganancias+separadas+y+enviadas+a+subcuenta+exitosamente.", status_code=303)
 
@@ -439,7 +445,11 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
     cursor.execute("SELECT email FROM sessions WHERE session_token = %s", (session_token,))
     session = cursor.fetchone()
     if session:
-        execute_automated_trade(session['email'])
+        # Validación de seguridad extra: bloquear ejecución si faltan las llaves
+        cursor.execute("SELECT binance_api_key, binance_secret_key FROM users WHERE email = %s", (session['email'],))
+        u = cursor.fetchone()
+        if u and u['binance_api_key'] and u['binance_secret_key']:
+            execute_automated_trade(session['email'])
     cursor.close()
     conn.close()
     return RedirectResponse(url="/", status_code=303)
