@@ -154,10 +154,8 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
         secondary_email = user_data.get('secondary_email', '')
         telegram_chat_id = user_data.get('telegram_chat_id', '')
 
-        # Validar si las llaves están presentes
         api_keys_validated = bool(binance_api_key and binance_secret_key)
 
-        # Obtener operaciones del usuario
         cursor.execute("SELECT * FROM operations WHERE user_email = %s ORDER BY id DESC LIMIT 50", (user_data['email'],))
         ops = cursor.fetchall()
         
@@ -190,7 +188,6 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
             chart_labels = ["Inicio"]
             chart_data_vals = [capital_ceiling]
 
-        # CORRECCIÓN: El estado del motor ahora exige obligatoriamente que api_keys_validated sea True
         motor_active = (str(emergency_stop).lower() != 'true' and api_keys_validated)
         
         if not api_keys_validated:
@@ -383,8 +380,8 @@ async def update_trading_config(
     trading_mode: str = Form(...),
     binance_api_key: str = Form(...),
     binance_secret_key: str = Form(...),
-    secondary_subaccount_email: str = Form(...),
-    telegram_chat_id: str = Form(...),
+    secondary_subaccount_email: Optional[str] = Form(None),
+    telegram_chat_id: Optional[str] = Form(None),
     session_token: Optional[str] = Cookie(None)
 ):
     if not session_token: return RedirectResponse(url="/", status_code=303)
@@ -397,9 +394,13 @@ async def update_trading_config(
         if email == ADMIN_EMAIL:
             cursor.execute("INSERT INTO settings (key, value) VALUES ('trading_mode', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (trading_mode, trading_mode))
         
+        # Convertir None a cadena vacía para evitar errores al guardar en la base de datos
+        sec_email_val = secondary_subaccount_email if secondary_subaccount_email else ""
+        tel_chat_val = telegram_chat_id if telegram_chat_id else ""
+
         cursor.execute("""
             UPDATE users SET trading_mode = %s, binance_api_key = %s, binance_secret_key = %s, secondary_email = %s, telegram_chat_id = %s WHERE email = %s
-        """, (trading_mode, binance_api_key, binance_secret_key, secondary_subaccount_email, telegram_chat_id, email))
+        """, (trading_mode, binance_api_key, binance_secret_key, sec_email_val, tel_chat_val, email))
         conn.commit()
     cursor.close()
     conn.close()
@@ -445,7 +446,6 @@ async def run_bot(session_token: Optional[str] = Cookie(None)):
     cursor.execute("SELECT email FROM sessions WHERE session_token = %s", (session_token,))
     session = cursor.fetchone()
     if session:
-        # Validación de seguridad extra: bloquear ejecución si faltan las llaves
         cursor.execute("SELECT binance_api_key, binance_secret_key FROM users WHERE email = %s", (session['email'],))
         u = cursor.fetchone()
         if u and u['binance_api_key'] and u['binance_secret_key']:
