@@ -118,6 +118,15 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
 
     except Exception as e: print(f"Error en ejecución: {e}")
 
+# ==========================================
+# RUTAS DE LA APLICACIÓN WEB
+# ==========================================
+
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    # Renderiza la plantilla principal index.html que está en la carpeta templates
+    return templates.TemplateResponse("index.html", {"request": request})
+
 @app.get("/cron-ping")
 async def cron_ping():
     execute_automated_trade(ADMIN_EMAIL)
