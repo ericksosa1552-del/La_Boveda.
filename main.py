@@ -438,6 +438,10 @@ async def toggle_emergency_stop(session_token: Optional[str] = Cookie(None)):
     cursor = conn.cursor()
     cursor.execute("SELECT email FROM sessions WHERE session_token = %s", (session_token,))
     session = cursor.fetchone()
+    
+    new_val = 'false'
+    user_chat_id = None
+    
     if session:
         email = session['email']
         if email == ADMIN_EMAIL:
@@ -447,20 +451,51 @@ async def toggle_emergency_stop(session_token: Optional[str] = Cookie(None)):
             new_val = 'false' if current == 'true' else 'true'
             cursor.execute("INSERT INTO settings (key, value) VALUES ('emergency_stop', %s) ON CONFLICT (key) DO UPDATE SET value = %s", (new_val, new_val))
         
-        cursor.execute("SELECT emergency_stop FROM users WHERE email = %s", (email,))
+        cursor.execute("SELECT emergency_stop, telegram_chat_id FROM users WHERE email = %s", (email,))
         u = cursor.fetchone()
         if u:
             cur_u_val = str(u['emergency_stop']).lower()
-            new_u_val = 'false' if cur_u_val == 'true' else 'true'
-            cursor.execute("UPDATE users SET emergency_stop = %s WHERE email = %s", (new_u_val, email))
+            new_val = 'false' if cur_u_val == 'true' else 'true'
+            user_chat_id = u['telegram_chat_id']
+            cursor.execute("UPDATE users SET emergency_stop = %s WHERE email = %s", (new_val, email))
         conn.commit()
     cursor.close()
     conn.close()
+
+    # Enviar notificación a Telegram sobre el estado del paro de emergencia
+    estado_texto = "ACTIVADO (Sistema Detenido)" if new_val == 'true' else "DESACTIVADO (Sistema Operativo)"
+    send_telegram_alert(f"⚠️ <b>Paro de Emergencia Modificado</b>\n• <b>Estado:</b> {estado_texto}", target_chat_id=user_chat_id)
+
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/separate-profits")
 async def separate_profits(session_token: Optional[str] = Cookie(None)):
     if not session_token: return RedirectResponse(url="/", status_code=303)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT email FROM sessions WHERE session_token = %s", (session_token,))
+    session = cursor.fetchone()
+    
+    if session:
+        email = session['email']
+        cursor.execute("SELECT binance_api_key, binance_secret_key, trading_mode FROM users WHERE email = %s", (email,))
+        u = cursor.fetchone()
+        
+        # Validar si faltan las API Keys o si está en modo demo
+        if not u or not u['binance_api_key'] or not u['binance_secret_key']:
+            cursor.close()
+            conn.close()
+            return RedirectResponse(url="/?alert=Error:+Debe+configurar+sus+API+Keys+de+Binance+para+apartar+ganancias.", status_code=303)
+        
+        if u['trading_mode'] == 'demo':
+            cursor.close()
+            conn.close()
+            return RedirectResponse(url="/?alert=Acción+no+permitida+en+modo+Demo.+Active+el+modo+real.", status_code=303)
+            
+    cursor.close()
+    conn.close()
+    
     return RedirectResponse(url="/?alert=Ganancias+separadas+y+enviadas+a+subcuenta+exitosamente.", status_code=303)
 
 @app.post("/run-bot")
