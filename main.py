@@ -294,11 +294,12 @@ async def register(email: str = Form(...), password: str = Form(...), confirm_pa
     conn.commit(); cursor.close(); conn.close()
     return RedirectResponse(url="/?alert=Registro+exitoso.", status_code=303)
 
-@app.get("/logout")
+@app.api_route("/logout", methods=["GET", "POST"])
 async def logout(request: Request):
     """
     Cierra la sesión del usuario eliminando la cookie de sesión
-    y redirigiendo a la página principal / login.
+    independientemente de si se accede por GET o por POST,
+    y redirige a la página principal / login.
     """
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie(key="session_token")
