@@ -12,13 +12,41 @@ from fastapi.templating import Jinja2Templates
 from typing import Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from cryptography.fernet import Fernet
 
 # --- IMPORTACIÓN DEL MÓDULO IA ---
 from ai_brain import AIBrain
 ai_brain = AIBrain()
 
-app = FastAPI(title="La Bóveda", version="5.2")
+app = FastAPI(title="La Bóveda", version="5.3")
 templates = Jinja2Templates(directory="templates")
+
+# ==========================================
+# CONFIGURACIÓN DE SEGURIDAD (ENCRIPTACIÓN)
+# ==========================================
+# Asegúrate de agregar ENCRYPTION_KEY en tu archivo .env
+# Puedes generar una ejecutando: python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
+if not ENCRYPTION_KEY:
+    # Llave por defecto temporal para evitar fallos si no se ha configurado el .env, 
+    # pero en producción se debe exigir obligatoriamente.
+    ENCRYPTION_KEY = Fernet.generate_key().decode()
+
+fernet_cipher = Fernet(ENCRYPTION_KEY.encode())
+
+def encrypt_data(plain_text: str) -> str:
+    if not plain_text:
+        return ""
+    return fernet_cipher.encrypt(plain_text.encode()).decode()
+
+def decrypt_data(encrypted_text: str) -> str:
+    if not encrypted_text:
+        return ""
+    try:
+        return fernet_cipher.decrypt(encrypted_text.encode()).decode()
+    except Exception:
+        # Si falla el descifrado (por ejemplo, si el texto antiguo estaba en plano), devolvemos el original
+        return encrypted_text
 
 # ==========================================
 # CONFIGURACIÓN DEL ADMINISTRADOR Y ZONA HORARIA
@@ -116,6 +144,14 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
                 return
             mode = u['trading_mode']
             capital_ceiling = float(u['capital_ceiling'])
+            
+            # Las llaves se descifran únicamente en memoria para la ejecución
+            api_key_decrypted = decrypt_data(u['binance_api_key'])
+            secret_key_decrypted = decrypt_data(u['binance_secret_key'])
+            if not api_key_decrypted or not secret_key_decrypted:
+                cursor.close()
+                conn.close()
+                return
         
         cursor.close()
         conn.close()
@@ -177,8 +213,9 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
         trading_mode = user_data['trading_mode'] if not is_admin else settings_data.get("trading_mode", "demo")
         emergency_stop = user_data['emergency_stop'] if not is_admin else settings_data.get("emergency_stop", "false")
         
-        binance_api_key = user_data.get('binance_api_key', '')
-        binance_secret_key = user_data.get('binance_secret_key', '')
+        # Desciframos las credenciales al momento de cargarlas en el panel para que el usuario pueda visualizarlas (si pasa el control de seguridad)
+        binance_api_key = decrypt_data(user_data.get('binance_api_key', ''))
+        binance_secret_key = decrypt_data(user_data.get('binance_secret_key', ''))
         secondary_email = user_data.get('secondary_email', '')
         telegram_chat_id = user_data.get('telegram_chat_id', '')
 
@@ -438,9 +475,13 @@ async def update_trading_config(
         sec_email_val = secondary_subaccount_email if secondary_subaccount_email else ""
         tel_chat_val = telegram_chat_id if telegram_chat_id else ""
 
+        # Encriptamos las llaves sensibles antes de guardarlas en la base de datos
+        encrypted_api_key = encrypt_data(binance_api_key)
+        encrypted_secret_key = encrypt_data(binance_secret_key)
+
         cursor.execute("""
             UPDATE users SET trading_mode = %s, binance_api_key = %s, binance_secret_key = %s, secondary_email = %s, telegram_chat_id = %s WHERE email = %s
-        """, (trading_mode, binance_api_key, binance_secret_key, sec_email_val, tel_chat_val, email))
+        """, (trading_mode, encrypted_api_key, encrypted_secret_key, sec_email_val, tel_chat_val, email))
         conn.commit()
     cursor.close()
     conn.close()
