@@ -72,6 +72,14 @@
             cursor: not-allowed;
         }
 
+        /* Clase de seguridad estricta para evitar que se puedan seleccionar o copiar las credenciales */
+        .secure-credential {
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            -ms-user-select: none !important;
+            user-select: none !important;
+        }
+
         .password-container { position: relative; }
         .password-container input { padding-right: 40px; }
         .toggle-password {
@@ -100,6 +108,7 @@
             transition: background 0.2s; text-align: center; margin-bottom: 15px;
         }
         .btn-profit:hover { background-color: #2563eb; }
+        .btn-profit:disabled { background-color: #374151; color: #6b7280; cursor: not-allowed; }
 
         .btn-logout {
             background-color: #ef4444; color: white; border: none; padding: 6px 12px;
@@ -113,7 +122,6 @@
         }
         .btn-pdf:hover { background-color: #2563eb; }
 
-        /* Estilo para el botón de Paro de Emergencia / Kill Switch */
         .btn-emergency {
             width: 100%;
             background-color: {% if emergency_stop.lower() == 'true' %}#059669{% else %}#dc2626{% endif %};
@@ -298,15 +306,15 @@
                     <div class="col">
                         <label>Binance API Key</label>
                         <div class="password-container">
-                            <input type="password" name="binance_api_key" id="dashApiKey" value="{{ binance_api_key }}" placeholder="ej. 123456789" {{ inputs_disabled }}>
-                            <button type="button" class="toggle-password" onclick="togglePassword('dashApiKey', this)">👁️</button>
+                            <input type="password" name="binance_api_key" id="dashApiKey" class="secure-credential" value="{{ binance_api_key }}" placeholder="ej. 123456789" oncopy="return false;" oncut="return false;" onpaste="return false;" {{ inputs_disabled }}>
+                            <button type="button" class="toggle-password" onclick="togglePasswordSecure('dashApiKey', this)">👁️</button>
                         </div>
                     </div>
                     <div class="col">
                         <label>Binance Secret Key</label>
                         <div class="password-container">
-                            <input type="password" name="binance_secret_key" id="dashSecret" value="{{ binance_secret_key | default('', true) }}" placeholder="ej. 123456789" {{ inputs_disabled }}>
-                            <button type="button" class="toggle-password" onclick="togglePassword('dashSecret', this)">👁️</button>
+                            <input type="password" name="binance_secret_key" id="dashSecret" class="secure-credential" value="{{ binance_secret_key | default('', true) }}" placeholder="ej. 123456789" oncopy="return false;" oncut="return false;" onpaste="return false;" {{ inputs_disabled }}>
+                            <button type="button" class="toggle-password" onclick="togglePasswordSecure('dashSecret', this)">👁️</button>
                         </div>
                     </div>
                 </div>
@@ -316,15 +324,15 @@
                     <div class="col">
                         <label>Correo Subcuenta Secundaria</label>
                         <div class="password-container">
-                            <input type="password" name="secondary_subaccount_email" id="dashSubEmail" value="{{ secondary_subaccount_email }}" placeholder="ej. subcuenta@ejemplo.com" {{ inputs_disabled }}>
-                            <button type="button" class="toggle-password" onclick="togglePassword('dashSubEmail', this)">👁️</button>
+                            <input type="password" name="secondary_subaccount_email" id="dashSubEmail" class="secure-credential" value="{{ secondary_subaccount_email }}" placeholder="ej. subcuenta@ejemplo.com" oncopy="return false;" oncut="return false;" onpaste="return false;" {{ inputs_disabled }}>
+                            <button type="button" class="toggle-password" onclick="togglePasswordSecure('dashSubEmail', this)">👁️</button>
                         </div>
                     </div>
                     <div class="col">
                         <label>Telegram Chat ID Personal</label>
                         <div class="password-container">
-                            <input type="password" name="telegram_chat_id" id="dashTgId" value="{{ telegram_chat_id | default('', true) }}" placeholder="ej. 123456789" {{ inputs_disabled }}>
-                            <button type="button" class="toggle-password" onclick="togglePassword('dashTgId', this)">👁️</button>
+                            <input type="password" name="telegram_chat_id" id="dashTgId" class="secure-credential" value="{{ telegram_chat_id | default('', true) }}" placeholder="ej. 123456789" oncopy="return false;" oncut="return false;" onpaste="return false;" {{ inputs_disabled }}>
+                            <button type="button" class="toggle-password" onclick="togglePasswordSecure('dashTgId', this)">👁️</button>
                         </div>
                     </div>
                 </div>
@@ -336,14 +344,14 @@
             </form>
         </div>
 
-        <!-- Botón condicional de Apartar/Separar Ganancias al validar llaves -->
-        {% if api_keys_validated %}
+        <!-- Botón condicional o de estado para Apartar/Separar Ganancias de Operación -->
         <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 10px;">
             <form action="/separate-profits" method="post">
-                <button type="submit" class="btn-profit">💰 Apartar / Separar Ganancias de Operación</button>
+                <button type="submit" class="btn-profit" {% if not api_keys_validated %}disabled title="Debe validar las llaves primero para habilitar el retiro de ganancias"{% endif %}>
+                    💰 Apartar / Separar Ganancias de Operación
+                </button>
             </form>
         </div>
-        {% endif %}
 
         <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 20px;">
             <form action="/run-bot" method="post">
@@ -389,6 +397,7 @@
             }
         }
 
+        // Función tradicional para inputs comunes (ej. login o registro)
         function togglePassword(fieldId, btn) {
             const input = document.getElementById(fieldId);
             if (input.type === 'password') {
@@ -400,10 +409,32 @@
             }
         }
 
+        // Función de seguridad mejorada (temporal o con auto-ocultamiento para credenciales críticas)
+        let hideTimeouts = {};
+        function togglePasswordSecure(fieldId, btn) {
+            const input = document.getElementById(fieldId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '🙈';
+                
+                // Ocultar automáticamente las credenciales después de 4 segundos para evitar exposición en pantalla
+                if (hideTimeouts[fieldId]) clearTimeout(hideTimeouts[fieldId]);
+                hideTimeouts[fieldId] = setTimeout(() => {
+                    if (input.type === 'text') {
+                        input.type = 'password';
+                        btn.textContent = '👁️';
+                    }
+                }, 4000);
+            } else {
+                input.type = 'password';
+                btn.textContent = '👁️';
+                if (hideTimeouts[fieldId]) clearTimeout(hideTimeouts[fieldId]);
+            }
+        }
+
         function toggleInputsLock() {
             const inputs = document.querySelectorAll('#dashboardBox input[type="password"], #dashboardBox input[type="text"], #dashboardBox input[type="number"], #dashboardBox select');
             inputs.forEach(input => {
-                // No bloquear campos de login o elementos generales fuera de configuración si los hubiera
                 if(input.name && input.name !== 'email' && input.name !== 'password') {
                     input.disabled = !input.disabled;
                 }
@@ -417,7 +448,6 @@
             const chartLabels = {{ chart_labels | default("['Inicio', 'Op 1', 'Op 2', 'Op 3']", true) | safe }};
             const chartData = {{ chart_data | default("[100, 103.5, 101.8, 105.2]", true) | safe }};
 
-            // Evaluar tendencia general o último movimiento para determinar color (Verde ganancia / Rojo caída)
             let isPositive = true;
             if (chartData.length >= 2) {
                 isPositive = chartData[chartData.length - 1] >= chartData[0];
@@ -474,7 +504,6 @@
             const fecha = new Date().toLocaleString('es-ES');
             doc.text("Generado el: " + fecha, 14, 27);
             
-            // Inyectar numeración automática 1, 2, 3... en las filas de la tabla para el PDF
             const tableElement = document.getElementById('historyTable');
             const rows = tableElement.querySelectorAll('tbody tr');
             rows.forEach((row, index) => {
