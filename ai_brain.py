@@ -59,20 +59,35 @@ class AIBrain:
         except Exception as e:
             logger.error(f"Error guardando memoria de la IA en Supabase: {e}")
 
-    def analyze_and_evolve(self, mode: str, last_trade_profit: float = None):
-        """Ajusta los parámetros y autoevoluciona basado en resultados reales."""
+    def analyze_and_evolve(self, mode: str, last_trade_profit: float = None, is_live: bool = False):
+        """Ajusta los parámetros y autoevoluciona basado en resultados reales con protección estricta en modo vivo."""
+        
+        # Forzar bandera si el modo es live
+        if mode.lower() == "live":
+            is_live = True
+
         if last_trade_profit is not None:
             if last_trade_profit > 0:
-                self.min_win_rate = max(0.60, round(self.min_win_rate - 0.01, 2))
+                # Si estamos en live, somos más conservadores reduciendo menos el win rate
+                reduction = 0.005 if is_live else 0.01
+                self.min_win_rate = max(0.70 if is_live else 0.60, round(self.min_win_rate - reduction, 2))
             else:
-                self.min_win_rate = min(0.85, round(self.min_win_rate + 0.02, 2))
+                # Si hay pérdidas, endurecemos los requisitos de forma más agresiva
+                increase = 0.03 if is_live else 0.02
+                self.min_win_rate = min(0.92, round(self.min_win_rate + increase, 2))
             
-            self.evolution_history.append({"mode": mode, "profit": last_trade_profit, "new_win_rate": self.min_win_rate})
+            self.evolution_history.append({
+                "mode": mode, 
+                "profit": last_trade_profit, 
+                "new_win_rate": self.min_win_rate,
+                "is_live": is_live
+            })
 
-        if mode == "live":
-            if self.min_win_rate < 0.75:
-                self.min_win_rate = 0.75
-            self.loss_streak_limit = 2
+        # Comportamiento de "Cirujano" (Modo Live de Alta Exigencia)
+        if is_live:
+            if self.min_win_rate < 0.78:
+                self.min_win_rate = 0.78
+            self.loss_streak_limit = 2  # Límite estricto de pérdidas consecutivas
         else:
             if self.min_win_rate < 0.65:
                 self.min_win_rate = 0.65
@@ -80,10 +95,16 @@ class AIBrain:
         
         self.save_memory()
         
-        logger.info(f"🧠 [IA Brain] Evolución aplicada en Supabase. Modo: {mode} | WinRate: {self.min_win_rate}")
+        logger.info(f"🧠 [IA Brain] Evolución aplicada. Modo: {mode} | Live Mode: {is_live} | WinRate: {self.min_win_rate} | LossLimit: {self.loss_streak_limit}")
         return {"win_rate": self.min_win_rate, "loss_limit": self.loss_streak_limit}
 
-    def evaluate_signal_confidence(self, base_confidence: float) -> float:
-        ai_boost = random.uniform(-1.5, 2.5)
+    def evaluate_signal_confidence(self, base_confidence: float, is_live: bool = False) -> float:
+        """Evalúa la confianza con filtros más estrictos si se encuentra en modo real (Live)."""
+        if is_live:
+            # En modo live penalizamos la incertidumbre (filtro de cirujano)
+            ai_boost = random.uniform(-2.5, 1.5)
+        else:
+            ai_boost = random.uniform(-1.5, 2.5)
+            
         final_confidence = round(min(max(base_confidence + ai_boost, 50.0), 99.9), 2)
         return final_confidence
