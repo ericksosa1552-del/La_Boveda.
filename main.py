@@ -125,7 +125,9 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
         amount = round(capital_ceiling * 0.01, 2)
         profit_loss = round(random.uniform(3.0, 6.0), 2) if random.random() > 0.3 else round(random.uniform(-0.5, -0.1), 2)
         
-        ai_brain.analyze_and_evolve(mode, last_trade_profit=profit_loss)
+        # Conciencia de modo integrada para la IA
+        is_live = (mode.lower() == 'live')
+        ai_brain.analyze_and_evolve(mode, last_trade_profit=profit_loss, is_live=is_live)
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -182,7 +184,8 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
 
         api_keys_validated = bool(binance_api_key and binance_secret_key)
 
-        cursor.execute("SELECT * FROM operations WHERE user_email = %s ORDER BY id DESC LIMIT 50", (user_data['email'],))
+        # Historial sin límite (conteo infinito)
+        cursor.execute("SELECT * FROM operations WHERE user_email = %s ORDER BY id DESC", (user_data['email'],))
         ops = cursor.fetchall()
         
         operations_rows = ""
@@ -229,7 +232,6 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
             btn_disabled = ""
             btn_style = ""
 
-        # Lógica para habilitar/deshabilitar el botón de apartar ganancias
         profit_btn_active = (str(trading_mode).lower() == 'live' and api_keys_validated)
         if not profit_btn_active:
             profit_btn_disabled = "disabled"
@@ -475,7 +477,6 @@ async def toggle_emergency_stop(session_token: Optional[str] = Cookie(None)):
     cursor.close()
     conn.close()
 
-    # Enviar notificación a Telegram sobre el estado del paro de emergencia
     estado_texto = "ACTIVADO (Sistema Detenido)" if new_val == 'true' else "DESACTIVADO (Sistema Operativo)"
     send_telegram_alert(f"⚠️ <b>Paro de Emergencia Modificado</b>\n• <b>Estado:</b> {estado_texto}", target_chat_id=user_chat_id)
 
@@ -495,7 +496,6 @@ async def separate_profits(session_token: Optional[str] = Cookie(None)):
         cursor.execute("SELECT binance_api_key, binance_secret_key, trading_mode FROM users WHERE email = %s", (email,))
         u = cursor.fetchone()
         
-        # Validar si faltan las API Keys o si está en modo demo
         if not u or not u['binance_api_key'] or not u['binance_secret_key']:
             cursor.close()
             conn.close()
