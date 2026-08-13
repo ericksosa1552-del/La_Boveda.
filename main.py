@@ -166,7 +166,6 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
             return
 
         # --- 4. Ejecución Real o Testnet (BinanceExecutor) ---
-        # Si mode es 'live', se conecta a producción (testnet=False), de lo contrario usa la Testnet de Binance
         testnet_mode = (mode.lower() != 'live')
         executor = BinanceExecutor(api_key=api_key_decrypted, secret_key=secret_key_decrypted, testnet=testnet_mode)
         
@@ -181,13 +180,9 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
             profit_loss = 0.0
             status_op = "RECHAZADA_EXCHANGE"
 
-        # Registrar resultado en el RiskEngine para control diario y rachas
         risk_manager.registrar_resultado_operacion(profit_loss)
-
-        # Evolución del Cerebro de IA con el resultado obtenido
         ai_brain.analyze_and_evolve(mode, last_trade_profit=profit_loss, is_live=is_live)
 
-        # Guardar en Base de Datos
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -298,6 +293,16 @@ async def register(email: str = Form(...), password: str = Form(...), confirm_pa
     cursor.execute("INSERT INTO users (email, password_hash) VALUES (%s, %s)", (email, hash_password(password)))
     conn.commit(); cursor.close(); conn.close()
     return RedirectResponse(url="/?alert=Registro+exitoso.", status_code=303)
+
+@app.get("/logout")
+async def logout(request: Request):
+    """
+    Cierra la sesión del usuario eliminando la cookie de sesión
+    y redirigiendo a la página principal / login.
+    """
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie(key="session_token")
+    return response
 
 @app.post("/update-capital")
 async def update_capital(capital: float = Form(...), session_token: Optional[str] = Cookie(None)):
