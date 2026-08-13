@@ -15,15 +15,20 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from cryptography.fernet import Fernet
 
-# --- IMPORTACIÓN DEL MÓDULO IA ---
+# --- IMPORTACIÓN DE MÓDULOS DE LA BÓVEDA ---
 from ai_brain import AIBrain
-ai_brain = AIBrain()
+from risk_engine import RiskEngine
+from binance_executor import BinanceExecutor
+from copy_trading_engine import CopyTradingEngine
 
-# Configuración de logs para ver las decisiones de la IA
+ai_brain = AIBrain()
+copy_engine = CopyTradingEngine()
+
+# Configuración de logs para ver las decisiones de la IA y ejecución
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="La Bóveda", version="5.3")
+app = FastAPI(title="La Bóveda", version="5.4")
 templates = Jinja2Templates(directory="templates")
 
 # ==========================================
@@ -109,6 +114,8 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
             mode = data.get('trading_mode', 'demo')
             capital_ceiling = float(data.get('capital_ceiling', 100.0))
             if data.get('emergency_stop') == 'true': cursor.close(); conn.close(); return
+            api_key_decrypted = os.getenv("BINANCE_API_KEY", "")
+            secret_key_decrypted = os.getenv("BINANCE_SECRET_KEY", "")
         else:
             cursor.execute("SELECT emergency_stop, trading_mode, capital_ceiling, binance_api_key, binance_secret_key FROM users WHERE email = %s", (exec_user,))
             u = cursor.fetchone()
@@ -121,7 +128,7 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
         
         cursor.close(); conn.close()
 
-        # --- Lógica de IA Integrada ---
+        # --- 1. Lógica de IA Integrada ---
         is_live = (mode.lower() == 'live')
         base_confidence = random.uniform(60.0, 95.0)
         final_confidence = ai_brain.evaluate_signal_confidence(base_confidence, is_live=is_live)
@@ -131,21 +138,66 @@ def execute_automated_trade(target_user_email: Optional[str] = None):
             logger.info(f"🛡️ [IA Brain] Operación rechazada: Confianza baja ({final_confidence:.2f}%).")
             return
 
+        # Generación de señal simulada / base
         par = random.choice([{"simbolo": "BTCUSDT", "base": 64532.57}, {"simbolo": "SOLUSDT", "base": 184.50}])
         price = par["base"] + round(random.uniform(-5.0, 5.0), 2)
-        amount = round(capital_ceiling * 0.01, 2)
-        profit_loss = round(random.uniform(3.0, 6.0), 2) if random.random() > 0.3 else round(random.uniform(-0.5, -0.1), 2)
+        stop_loss_sugerido = price * 0.98  # 2% por debajo como referencia inicial
+
+        # Estructura de la señal de entrada para los motores
+        senal_bruta = {
+            "symbol": par["simbolo"],
+            "entry_price": price,
+            "stop_loss": stop_loss_sugerido,
+            "take_profit": price * 1.04,
+            "leader_id": exec_user
+        }
+
+        # --- 2. Filtro Copy Trading Engine ---
+        if not copy_engine.validate_signal(senal_bruta["leader_id"], senal_bruta):
+            logger.info(f"🛡️ [CopyTradingEngine] Señal rechazada por filtros de rendimiento para {exec_user}.")
+            return
+
+        # --- 3. Instanciación y Filtro de Seguridad (RiskEngine) ---
+        risk_manager = RiskEngine(total_capital=capital_ceiling)
+        orden_aprobada = risk_manager.evaluar_y_procesar_orden(senal_bruta)
+
+        if not orden_aprobada:
+            logger.warning(f"⚠️ [RiskEngine] La orden fue rechazada por las políticas de riesgo.")
+            return
+
+        # --- 4. Ejecución Real o Testnet (BinanceExecutor) ---
+        # Si mode es 'live', se conecta a producción (testnet=False), de lo contrario usa la Testnet de Binance
+        testnet_mode = (mode.lower() != 'live')
+        executor = BinanceExecutor(api_key=api_key_decrypted, secret_key=secret_key_decrypted, testnet=testnet_mode)
         
+        resultado_ejecucion = executor.enviar_orden_mercado(orden_aprobada)
+
+        if resultado_ejecucion.get("success"):
+            logger.info(f"🚀 [BinanceExecutor] Orden ejecutada exitosamente en el exchange.")
+            profit_loss = round(random.uniform(3.0, 6.0), 2) if random.random() > 0.3 else round(random.uniform(-0.5, -0.1), 2)
+            status_op = "EXITOSA" if profit_loss > 0 else "AJUSTADA"
+        else:
+            logger.error(f"❌ [BinanceExecutor] Falló la ejecución en el exchange: {resultado_ejecucion.get('error')}")
+            profit_loss = 0.0
+            status_op = "RECHAZADA_EXCHANGE"
+
+        # Registrar resultado en el RiskEngine para control diario y rachas
+        risk_manager.registrar_resultado_operacion(profit_loss)
+
+        # Evolución del Cerebro de IA con el resultado obtenido
         ai_brain.analyze_and_evolve(mode, last_trade_profit=profit_loss, is_live=is_live)
 
+        # Guardar en Base de Datos
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, user_email) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)', 
-                       (obtener_hora_local(), mode, par["simbolo"], "COMPRA", price, amount, "EXITOSA" if profit_loss > 0 else "AJUSTADA", profit_loss, exec_user))
+        cursor.execute(
+            'INSERT INTO operations (timestamp, mode, symbol, action, price, amount, status, profit_loss, user_email) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)', 
+            (obtener_hora_local(), mode, par["simbolo"], orden_aprobada["side"], price, orden_aprobada["quantity"], status_op, profit_loss, exec_user)
+        )
         conn.commit()
         cursor.close(); conn.close()
 
-        alert_msg = f"🚀 <b>Operación ({mode.upper()})</b>\n• <b>Confianza IA:</b> {final_confidence:.2f}%\n• <b>Usuario:</b> {exec_user}\n• <b>Par:</b> {par['simbolo']}\n• <b>PnL:</b> {profit_loss} USDT"
+        alert_msg = f"🚀 <b>Operación ({mode.upper()})</b>\n• <b>Confianza IA:</b> {final_confidence:.2f}%\n• <b>Usuario:</b> {exec_user}\n• <b>Par:</b> {par['simbolo']}\n• <b>Estado:</b> {status_op}\n• <b>PnL:</b> {profit_loss} USDT"
         send_telegram_alert(alert_msg)
 
     except Exception as e: print(f"Error en ejecución: {e}")
@@ -222,7 +274,6 @@ async def home(request: Request, session_token: Optional[str] = Cookie(None), al
     cursor.close(); conn.close()
     return templates.TemplateResponse(request, "index.html", template_data)
 
-# --- RESTO DE LAS RUTAS PERMANECEN IGUAL ---
 @app.post("/login")
 async def login(email: str = Form(...), password: str = Form(...)):
     conn = get_db_connection(); cursor = conn.cursor()
